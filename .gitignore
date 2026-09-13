@@ -1,0 +1,29 @@
+# Laravel
+/BTPControl/vendor/
+/BTPControl/.env
+/BTPControl/storage/*.key
+/BTPControl/storage/framework/cache/*
+/BTPControl/storage/framework/sessions/*
+/BTPControl/storage/framework/views/*
+/BTPControl/storage/logs/*
+
+# React
+/frontend/node_modules/
+/frontend/build/
+/frontend/dist/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
