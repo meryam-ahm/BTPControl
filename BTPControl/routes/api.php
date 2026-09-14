@@ -1,196 +1,658 @@
 <?php
-use App\Http\Controllers\ProjectUserController;
+
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\EngineerDashboardController;
-use App\Http\Controllers\TaskController;
+
+/*
+|--------------------------------------------------------------------------
+| AUTH
+|--------------------------------------------------------------------------
+*/
+
+use App\Http\Controllers\Auth\AuthController;
+
+/*
+|--------------------------------------------------------------------------
+| GENERAL CONTROLLERS
+|--------------------------------------------------------------------------
+*/
+
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\TaskController;
 use App\Http\Controllers\ExecutionController;
 use App\Http\Controllers\InspectionController;
-use App\Http\Controllers\NonConformityController;
 use App\Http\Controllers\InspectionCheckController;
-use App\Http\Controllers\SiteManagerTasksController;
-use App\Http\Controllers\SiteManagerController;
-use App\Http\Controllers\WorkerController;
-use Illuminate\Http\Request;
-use App\Http\Controllers\WorkerActivityController;
+use App\Http\Controllers\NonConformityController;
 
 /*
 |--------------------------------------------------------------------------
-| Dashboard
+| ENGINEER
 |--------------------------------------------------------------------------
 */
 
-Route::get('engineer/dashboard/stats', [EngineerDashboardController::class, 'stats']);
-Route::get('engineer/dashbored/table', [EngineerDashboardController::class, 'table']);
-Route::get('engineer/dashbored/clients', [EngineerDashboardController::class, 'clients']);
-Route::delete(
-    '/engineer/projects/{project}',
-    [EngineerDashboardController::class, 'destroy']
-);
-Route::put(
-    '/engineer/projects/{project}',
-    [EngineerDashboardController::class, 'update']
-);
-Route::post('engineer/dashbored/createproject', [EngineerDashboardController::class, 'createProject']);
-Route::post('engineer/dashbored/createClient', [EngineerDashboardController::class, 'createClient']);
-
-Route::get('engineer/dashbored/projects/search', [EngineerDashboardController::class, 'searchProject']);
-Route::get('engineer/dashbored/projects/filter', [EngineerDashboardController::class, 'filterProjects']);
-Route::get('engineer/dashbored/filters-data', [EngineerDashboardController::class, 'filtersData']);
+use App\Http\Controllers\Engineer\DashboardController
+    as EngineerDashboardController;
 
 /*
 |--------------------------------------------------------------------------
-| Projects / Tasks
+| SITE MANAGER
 |--------------------------------------------------------------------------
 */
 
-Route::get('/projects/{projectId}/timeline', [TaskController::class, 'timeline']);
+use App\Http\Controllers\SiteManager\DashboardController
+    as SiteManagerDashboardController;
 
-Route::get('engineer/getProjects', [ProjectController::class, 'getProjects']);
+use App\Http\Controllers\SiteManager\WorkerController
+    as SiteManagerWorkerController;
 
-Route::get('engineer/projects/{projectId}/workers', [ProjectController::class, 'getProjectWorkers']);
+use App\Http\Controllers\SiteManager\TaskController
+    as SiteManagerTaskController;
 
-Route::post('engineer/TaskController/CreateTask', [TaskController::class, 'store']);
+use App\Http\Controllers\SiteManager\ResourceController
+    as SiteManagerResourceController;
 
-Route::get('engineer/TaskController/task-form-data', [TaskController::class, 'index']);
-
-Route::get('engineer/TaskController/tasksList', [TaskController::class, 'tasksList']);
-
-Route::get('engineer/projects/{projectId}/tasks', [TaskController::class, 'getProjectTasks']);
-
-Route::post('engineer/TaskController/tasks/{taskId}/upload-media', [TaskController::class, 'uploadTaskMedia']);
+use App\Http\Controllers\SiteManager\IncidentController
+    as SiteManagerIncidentController;
 
 /*
 |--------------------------------------------------------------------------
-| Execution / Stats
+| WORKER
 |--------------------------------------------------------------------------
 */
 
-Route::get('/projects/{id}/stats', [ProjectController::class, 'stats']);
+use App\Http\Controllers\Worker\DashboardController
+    as WorkerDashboardController;
 
-Route::get('/projects/{projectId}/execution', [ExecutionController::class, 'execution']);
+use App\Http\Controllers\Worker\TaskController
+    as WorkerTaskController;
 
-Route::get('/inspections/{id}/getquality', [ExecutionController::class, 'getquality']);
+use App\Http\Controllers\Worker\ReportController
+    as WorkerReportController;
 
-Route::get('/projects/{id}/getsafety', [ExecutionController::class, 'getsafety']);
-
-/*
-|--------------------------------------------------------------------------
-| INSPECTIONS (IMPORTANT FIX HERE)
-|--------------------------------------------------------------------------
-*/
-
-Route::get('/projects/{projectId}/inspections', [InspectionController::class, 'index']);
-
-Route::get('/inspections/{id}', [InspectionController::class, 'show']);
-Route::get('/projects/{projectId}/non-conformities',[InspectionController::class, 'nonConformities']);
-Route::post('/non-conformities',[NonConformityController::class, 'store']);
- 
-Route::get('/projects/{projectId}/site-managers',[ProjectUserController::class, 'siteManagers']
-); 
-// Route::get('/projects/{project}/quick-actions',
-// [QuickActionController::class,'index']
-// );
-
-Route::post('/inspections',[InspectionController::class, 'store']);
-
-Route::post('/inspection-checks',[InspectionCheckController::class, 'store']);
-
-// Route::get('/projects/{project}/quick-actions',[QuickActionController::class, 'index']);
-
-Route::get('/site-manager/workers',[SiteManagerTasksController::class, 'workers']);
-
-Route::post('/site-manager/tasks/create-worker-task',[SiteManagerTasksController::class, 'createWorkerTask']);
- 
-Route::get('/site-manager/tasks',[SiteManagerTasksController::class, 'index']);
-/* 
-|--------------------------------------------------------------------------
-| Site Manager routes
-|--------------------------------------------------------------------------
-*/
-  Route::get('/SiteManager/getProjects',[SiteManagerController::class,'getProjects']);
-  Route::get('/projects/{project}/statsSiteManager',[SiteManagerController::class, 'statsSiteManager']);
-  Route::get('/projects/{project}/workers/',[SiteManagerController::class,'stats_selectedproject']);
-  Route::get("/projects/{project}/tasks/",[SiteManagerController::class,"stats_selectedproject"]);
-  Route::get("/SiteManager/{project}/task-form-data",[SiteManagerController::class,'taskFormData']);
-  Route::get("/SiteManager/projects/{project}/tasks",[SiteManagerController::class,'tasks_selectedProject']);
-  Route::post("/SiteManager/CreateTask/",[SiteManagerController::class,'CreateTask']);
-  Route::post("/SiteManager/projects/{project}/CreateWorker/",[SiteManagerController::class,'CreateWorker']);
-  Route::get('/workers/{worker}/attendance', [SiteManagerController::class, 'getWorkerAttendance']);
-  Route::delete('/projects/{project}/workers/{worker}', [SiteManagerController::class, 'removeWorkerFromProject']);
-  Route::get('/projects/{project}/incidents', [SiteManagerController::class, 'getIncidents']);
-Route::post('/projects/{project}/incidents',[SiteManagerController::class, 'storeIncident']);
-Route::get('/projects/{project}/resources', [SiteManagerController::class, 'getResources']);
-Route::post('/projects/{project}/createResource',[SiteManagerController::class, 'createResource']);
-Route::get('/projects/{project}/photo', [SiteManagerController::class, 'getProjectPhoto']);
-
+use App\Http\Controllers\Worker\ActivityController
+    as WorkerActivityController;
 
 
 /*
 |--------------------------------------------------------------------------
-| Worker inerface routes
+|--------------------------------------------------------------------------
+| PUBLIC AUTHENTICATION
+|--------------------------------------------------------------------------
 |--------------------------------------------------------------------------
 */
- 
-Route::get(
-    '/Worker/getProjects',
-    [WorkerController::class, 'getProjects']
-);
 
-Route::get(
-    '/Worker/projects/{project}/home',
-    [WorkerController::class, 'home']
-);
+Route::prefix('auth')->group(function () {
 
-Route::post(
-    '/Worker/projects/{project}/report',
-    [WorkerController::class, 'reportIssue']
-);
+    Route::post(
+        '/register',
+        [AuthController::class, 'register']
+    );
 
-Route::patch(
-    '/Worker/tasks/{task}/done',
-    [WorkerController::class, 'markTaskDone']
-);
+    Route::post(
+        '/login',
+        [AuthController::class, 'login']
+    );
+});
 
-
- 
 
 /*
 |--------------------------------------------------------------------------
-| Worker Activity
 |--------------------------------------------------------------------------
-| Temporary development setup:
-| worker ID 48 is used until authentication/login is implemented.
+| AUTHENTICATED APPLICATION
+|--------------------------------------------------------------------------
 |--------------------------------------------------------------------------
 */
 
-Route::get(
-    '/projects/{projectId}/worker-activity/chat',
-    [WorkerActivityController::class, 'getMessages']
-);
+Route::middleware('auth:sanctum')->group(function () {
 
-Route::post(
-    '/projects/{projectId}/worker-activity/chat',
-    [WorkerActivityController::class, 'sendMessage']
-);
 
-Route::get(
-    '/projects/{projectId}/worker-activity/attendance',
-    [WorkerActivityController::class, 'getMyAttendance']
-);
+    /*
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    | ENGINEER
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    */
 
-Route::post(
-    '/projects/{projectId}/worker-activity/check-in',
-    [WorkerActivityController::class, 'checkIn']
-);
+    /*
+    |--------------------------------------------------------------------------
+    | ENGINEER DASHBOARD
+    |--------------------------------------------------------------------------
+    */
 
-Route::post(
-    '/projects/{projectId}/worker-activity/check-out',
-    [WorkerActivityController::class, 'checkOut']
-);
+    Route::get(
+        'engineer/dashboard/stats',
+        [EngineerDashboardController::class, 'stats']
+    );
 
-Route::get(
-    '/projects/{projectId}/worker-activity/notifications',
-    [WorkerActivityController::class, 'getNotifications']
-);
- 
+    Route::get(
+        'engineer/dashbored/table',
+        [EngineerDashboardController::class, 'table']
+    );
+
+    Route::get(
+        'engineer/dashbored/clients',
+        [EngineerDashboardController::class, 'clients']
+    );
+
+    Route::get(
+        'engineer/dashbored/projects/search',
+        [EngineerDashboardController::class, 'searchProject']
+    );
+
+    Route::get(
+        'engineer/dashbored/projects/filter',
+        [EngineerDashboardController::class, 'filterProjects']
+    );
+
+    Route::get(
+        'engineer/dashbored/filters-data',
+        [EngineerDashboardController::class, 'filtersData']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ENGINEER PROJECT UPDATE
+    |--------------------------------------------------------------------------
+    */
+
+    Route::put(
+        'engineer/projects/{project}',
+        [EngineerDashboardController::class, 'update']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ENGINEER PROJECT DELETE
+    |--------------------------------------------------------------------------
+    */
+
+    Route::delete(
+        'engineer/projects/{project}',
+        [EngineerDashboardController::class, 'destroy']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ENGINEER PROJECTS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'engineer/getProjects',
+        [ProjectController::class, 'getProjects']
+    );
+
+    Route::get(
+        'engineer/projects/{projectId}/workers',
+        [ProjectController::class, 'getProjectWorkers']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ENGINEER TASKS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post(
+        'engineer/TaskController/CreateTask',
+        [TaskController::class, 'store']
+    );
+
+    Route::get(
+        'engineer/TaskController/task-form-data',
+        [TaskController::class, 'index']
+    );
+
+    Route::get(
+        'engineer/TaskController/tasksList',
+        [TaskController::class, 'tasksList']
+    );
+
+    Route::get(
+        'engineer/projects/{projectId}/tasks',
+        [TaskController::class, 'getProjectTasks']
+    );
+
+    Route::post(
+        'engineer/TaskController/tasks/{taskId}/upload-media',
+        [TaskController::class, 'uploadTaskMedia']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PROJECT TIMELINE
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{projectId}/timeline',
+        [TaskController::class, 'timeline']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PROJECT STATS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{id}/stats',
+        [ProjectController::class, 'stats']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    | EXECUTION
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{projectId}/execution',
+        [ExecutionController::class, 'execution']
+    );
+
+    Route::get(
+        'inspections/{id}/getquality',
+        [ExecutionController::class, 'quality']
+    );
+
+    Route::get(
+        'projects/{id}/getsafety',
+        [ExecutionController::class, 'safety']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    | INSPECTIONS
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{projectId}/inspections',
+        [InspectionController::class, 'index']
+    );
+
+    Route::get(
+        'inspections/{id}',
+        [InspectionController::class, 'show']
+    );
+
+    Route::post(
+        'inspections',
+        [InspectionController::class, 'store']
+    );
+
+    Route::post(
+        'inspection-checks',
+        [InspectionCheckController::class, 'store']
+    );
+
+    Route::get(
+        'projects/{projectId}/non-conformities',
+        [InspectionController::class, 'nonConformities']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    | NON-CONFORMITIES
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{projectId}/non-conformities/list',
+        [NonConformityController::class, 'index']
+    );
+
+    Route::get(
+        'non-conformities/{id}',
+        [NonConformityController::class, 'show']
+    );
+
+    Route::post(
+        'non-conformities',
+        [NonConformityController::class, 'store']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    | SITE MANAGER
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    */
+
+    /*
+    |--------------------------------------------------------------------------
+    | SITE MANAGER PROJECTS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'SiteManager/getProjects',
+        [SiteManagerDashboardController::class, 'projects']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SITE MANAGER DASHBOARD STATS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{project}/statsSiteManager',
+        [SiteManagerDashboardController::class, 'stats']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SITE MANAGER WORKERS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{project}/workers',
+        [SiteManagerDashboardController::class, 'selectedProject']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SITE MANAGER TASKS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{project}/tasks',
+        [SiteManagerDashboardController::class, 'tasks']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SITE MANAGER TASK FORM DATA
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'SiteManager/{project}/task-form-data',
+        [SiteManagerDashboardController::class, 'taskFormData']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SITE MANAGER PROJECT TASKS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'SiteManager/projects/{project}/tasks',
+        [SiteManagerDashboardController::class, 'tasks']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE SITE MANAGER TASK
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post(
+        'SiteManager/CreateTask',
+        [SiteManagerTaskController::class, 'store']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE WORKER
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post(
+        'SiteManager/projects/{project}/CreateWorker',
+        [SiteManagerWorkerController::class, 'store']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER ATTENDANCE
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'workers/{worker}/attendance',
+        [SiteManagerWorkerController::class, 'attendance']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | REMOVE WORKER FROM PROJECT
+    |--------------------------------------------------------------------------
+    */
+
+    Route::delete(
+        'projects/{project}/workers/{worker}',
+        [SiteManagerWorkerController::class, 'destroy']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SITE MANAGER RESOURCES
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{project}/resources',
+        [SiteManagerResourceController::class, 'index']
+    );
+
+    Route::post(
+        'projects/{project}/createResource',
+        [SiteManagerResourceController::class, 'store']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SITE MANAGER INCIDENTS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{project}/incidents',
+        [SiteManagerIncidentController::class, 'index']
+    );
+
+    Route::post(
+        'projects/{project}/incidents',
+        [SiteManagerIncidentController::class, 'store']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SITE MANAGER PHOTO
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{project}/photo',
+        [SiteManagerDashboardController::class, 'photo']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    | WORKER
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    */
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER PROJECTS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'Worker/getProjects',
+        [WorkerDashboardController::class, 'projects']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER HOME
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'Worker/projects/{project}/home',
+        [WorkerDashboardController::class, 'home']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER REPORT
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post(
+        'Worker/projects/{project}/report',
+        [WorkerReportController::class, 'store']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER TASK COMPLETE
+    |--------------------------------------------------------------------------
+    */
+
+    Route::patch(
+        'Worker/tasks/{task}/done',
+        [WorkerTaskController::class, 'complete']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER ACTIVITY CHAT - GET
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{projectId}/worker-activity/chat',
+        [WorkerActivityController::class, 'messages']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER ACTIVITY CHAT - POST
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post(
+        'projects/{projectId}/worker-activity/chat',
+        [WorkerActivityController::class, 'sendMessage']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER ACTIVITY ATTENDANCE
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{projectId}/worker-activity/attendance',
+        [WorkerActivityController::class, 'attendance']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER CHECK IN
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post(
+        'projects/{projectId}/worker-activity/check-in',
+        [WorkerActivityController::class, 'checkIn']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER CHECK OUT
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post(
+        'projects/{projectId}/worker-activity/check-out',
+        [WorkerActivityController::class, 'checkOut']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKER NOTIFICATIONS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'projects/{projectId}/worker-activity/notifications',
+        [WorkerActivityController::class, 'notifications']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    | CURRENT USER
+    |--------------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        'auth/me',
+        [AuthController::class, 'me']
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOGOUT
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post(
+        'auth/logout',
+        [AuthController::class, 'logout']
+    );
+});

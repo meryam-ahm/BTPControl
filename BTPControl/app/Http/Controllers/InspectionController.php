@@ -3,27 +3,27 @@
 namespace App\Http\Controllers;
 
 use App\Models\Inspection;
-use App\Models\InspectionCheck;
-use App\Models\NonConformity;
 use App\Models\Media;
+use App\Models\NonConformity;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class InspectionController extends Controller
 {
-    // LIST INSPECTIONS
-    public function index($projectId)
+    public function index($projectId): JsonResponse
     {
-        return Inspection::where('project_id', $projectId)
-            ->latest()
-            ->get();
+        return response()->json(
+            Inspection::where('project_id', $projectId)
+                ->latest()
+                ->get()
+        );
     }
 
-    // CREATE INSPECTION
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'project_id' => 'required|exists:projects,id',
-            'title' => 'required|string',
+            'title' => 'required|string|max:255',
             'type' => 'required|in:quality,safety',
             'inspection_date' => 'required|date',
             'inspected_by' => 'required|exists:users,id',
@@ -31,23 +31,21 @@ class InspectionController extends Controller
         ]);
 
         $inspection = Inspection::create([
-            'project_id' => $request->project_id,
+            ...$validated,
             'task_id' => null,
-            'inspected_by' => $request->inspected_by,
-            'type' => $request->type,
-            'title' => $request->title,
-            'inspection_date' => $request->inspection_date,
             'status' => 'draft',
-            'notes' => $request->notes,
         ]);
 
-        return response()->json($inspection, 201);
+        return response()->json(
+            $inspection,
+            201
+        );
     }
 
-    // SINGLE INSPECTION
-    public function show($id)
+    public function show($id): JsonResponse
     {
-        $inspection = Inspection::with('checks')->findOrFail($id);
+        $inspection = Inspection::with('checks')
+            ->findOrFail($id);
 
         $photos = Media::where('related_type', 'inspection')
             ->where('related_id', $inspection->id)
@@ -65,11 +63,15 @@ class InspectionController extends Controller
         ]);
     }
 
-    // NON CONFORMITIES
-    public function nonConformities($projectId)
+    public function nonConformities($projectId): JsonResponse
     {
-        return NonConformity::where('project_id', $projectId)
+        return response()->json(
+            NonConformity::where(
+                'project_id',
+                $projectId
+            )
             ->latest()
-            ->get();
+            ->get()
+        );
     }
 }

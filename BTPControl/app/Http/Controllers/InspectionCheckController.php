@@ -1,16 +1,19 @@
 <?php
+
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Models\Inspection;
 use App\Models\InspectionCheck;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class InspectionCheckController extends Controller
 {
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'inspection_id' => 'required|exists:inspections,id',
-            'check_name' => 'required|string',
+            'check_name' => 'required|string|max:255',
             'required_value' => 'nullable|string',
             'actual_value' => 'nullable|string',
             'unit' => 'nullable|string',
@@ -19,21 +22,29 @@ class InspectionCheckController extends Controller
             'comment' => 'nullable|string',
         ]);
 
+        $inspection = Inspection::findOrFail(
+            $validated['inspection_id']
+        );
+
         $check = InspectionCheck::create([
-            'inspection_id' => $request->inspection_id,
-            'check_name' => $request->check_name,
-            'required_value' => $request->required_value,
-            'actual_value' => $request->actual_value,
-            'unit' => $request->unit,
-            'status' => $request->status,
-            'severity' => $request->severity,
-            'comment' => $request->comment,
+            'inspection_id' => $inspection->id,
+            'check_name' => $validated['check_name'],
+            'required_value' =>
+                $validated['required_value'] ?? null,
+            'actual_value' =>
+                $validated['actual_value'] ?? null,
+            'unit' => $validated['unit'] ?? null,
+            'status' => $validated['status'],
+            'severity' =>
+                $validated['severity'] ?? null,
+            'comment' =>
+                $validated['comment'] ?? null,
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Checklist created successfully.',
-            'data' => $check
+            'data' => $check,
         ], 201);
     }
 }

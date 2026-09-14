@@ -1,68 +1,53 @@
- 
-import React, { useEffect, useState } from 'react';
+ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+
 import {
+  Menu,
   MessageSquare,
   Clock,
+  CheckCircle2,
+  LogOut,
   Send,
+  CheckCheck,
+  AlertCircle,
 } from 'lucide-react';
 
+const API_URL = 'http://127.0.0.1:8000/api';
+
 export default function WorkerActivity({
+  projectId,
   attendance,
   setAttendance,
   onNavigate,
-  projectId,
 }) {
   const [chatStream, setChatStream] = useState([]);
   const [inputValue, setInputValue] = useState('');
-  const [loadingChat, setLoadingChat] = useState(true);
-  const [sending, setSending] = useState(false);
 
-  const [attendanceData, setAttendanceData] = useState(
-    attendance || null
-  );
+  const [loadingMessages, setLoadingMessages] =
+    useState(false);
 
-  const [attendanceLoading, setAttendanceLoading] = useState(true);
-  const [attendanceAction, setAttendanceAction] = useState(false);
+  const [sendingMessage, setSendingMessage] =
+    useState(false);
 
-  const [attendanceMessage, setAttendanceMessage] = useState('');
-  const [attendanceError, setAttendanceError] = useState('');
+  const [checkingIn, setCheckingIn] =
+    useState(false);
 
-  /*
-  |--------------------------------------------------------------------------
-  | GET PROJECT ID
-  |--------------------------------------------------------------------------
-  |
-  | IMPORTANT:
-  | Do NOT use the last URL segment because your URL can be:
-  |
-  | /projects/11/planning
-  |
-  | The last segment is "planning", not "11".
-  |
-  */
+  const [checkingOut, setCheckingOut] =
+    useState(false);
 
-  const getProjectIdFromUrl = () => {
-    const parts = window.location.pathname
-      .split('/')
-      .filter(Boolean);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-    // Find a numeric part in the URL.
-    const numericId = [...parts]
-      .reverse()
-      .find((part) => /^\d+$/.test(part));
-
-    return numericId || null;
-  };
-
-  const currentProjectId =
-    projectId || getProjectIdFromUrl();
+  const [workDuration, setWorkDuration] =
+    useState(null);
 
   /*
   |--------------------------------------------------------------------------
-  | DEBUG
+  | PROJECT ID
   |--------------------------------------------------------------------------
   */
+
+  const currentProjectId = projectId;
 
   console.log(
     'WorkerActivity project ID:',
@@ -71,86 +56,185 @@ export default function WorkerActivity({
 
   /*
   |--------------------------------------------------------------------------
-  | GET CHAT MESSAGES
-  |--------------------------------------------------------------------------
-  */
-
-  const fetchMessages = async () => {
-    if (!currentProjectId) {
-      console.error('No project ID found.');
-      return;
-    }
-
-    try {
-      setLoadingChat(true);
-
-      const response = await axios.get(
-        `/api/projects/${currentProjectId}/worker-activity/chat`
-      );
-
-      setChatStream(response.data.messages || []);
-    } catch (error) {
-      console.error(
-        'Error loading chat messages:',
-        error
-      );
-    } finally {
-      setLoadingChat(false);
-    }
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | GET TODAY'S ATTENDANCE
-  |--------------------------------------------------------------------------
-  */
-
-  const fetchAttendance = async () => {
-    if (!currentProjectId) {
-      return;
-    }
-
-    try {
-      setAttendanceLoading(true);
-
-      const response = await axios.get(
-        `/api/projects/${currentProjectId}/worker-activity/attendance`
-      );
-
-      const data = response.data.attendance || null;
-
-      setAttendanceData(data);
-
-      if (setAttendance) {
-        setAttendance(data);
-      }
-    } catch (error) {
-      console.error(
-        'Error loading attendance:',
-        error
-      );
-    } finally {
-      setAttendanceLoading(false);
-    }
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | INITIAL LOAD
+  | LOAD CHAT
   |--------------------------------------------------------------------------
   */
 
   useEffect(() => {
     if (!currentProjectId) {
-      console.error(
-        'WorkerActivity: project ID is missing.'
-      );
       return;
     }
 
-    fetchMessages();
-    fetchAttendance();
+    const loadMessages = async () => {
+      try {
+        setLoadingMessages(true);
+        setError('');
+
+        const response = await axios.get(
+          `${API_URL}/projects/${currentProjectId}/worker-activity/chat`
+        );
+
+        setChatStream(
+          response.data.messages || []
+        );
+      } catch (err) {
+        console.error(
+          'Error loading messages:',
+          err
+        );
+
+        setError(
+          'Unable to load messages.'
+        );
+      } finally {
+        setLoadingMessages(false);
+      }
+    };
+
+    loadMessages();
   }, [currentProjectId]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | LOAD ATTENDANCE
+  |--------------------------------------------------------------------------
+  */
+
+  useEffect(() => {
+    if (!currentProjectId) {
+      return;
+    }
+
+    const loadAttendance = async () => {
+      try {
+        const response = await axios.get(
+          `${API_URL}/projects/${currentProjectId}/worker-activity/attendance`
+        );
+
+        const currentAttendance =
+          response.data.attendance;
+
+        setAttendance(
+          currentAttendance || null
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | If already checked out, calculate duration
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+          currentAttendance?.check_in &&
+          currentAttendance?.check_out
+        ) {
+          calculateDuration(
+            currentAttendance.check_in,
+            currentAttendance.check_out
+          );
+        } else {
+          setWorkDuration(null);
+        }
+      } catch (err) {
+        console.error(
+          'Error loading attendance:',
+          err
+        );
+      }
+    };
+
+    loadAttendance();
+  }, [
+    currentProjectId,
+    setAttendance,
+  ]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | CALCULATE WORK DURATION
+  |--------------------------------------------------------------------------
+  */
+
+  const calculateDuration = (
+    checkIn,
+    checkOut
+  ) => {
+    if (!checkIn || !checkOut) {
+      setWorkDuration(null);
+      return;
+    }
+
+    const start =
+      new Date(checkIn);
+
+    const end =
+      new Date(checkOut);
+
+    const difference =
+      end.getTime() -
+      start.getTime();
+
+    if (difference <= 0) {
+      setWorkDuration(null);
+      return;
+    }
+
+    const totalMinutes = Math.floor(
+      difference / (1000 * 60)
+    );
+
+    const hours = Math.floor(
+      totalMinutes / 60
+    );
+
+    const minutes =
+      totalMinutes % 60;
+
+    let duration = '';
+
+    if (hours > 0) {
+      duration += `${hours}h `;
+    }
+
+    if (minutes > 0) {
+      duration += `${minutes}min`;
+    }
+
+    if (!duration) {
+      duration = 'Less than 1 min';
+    }
+
+    setWorkDuration(
+      duration.trim()
+    );
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | FORMAT TIME
+  |--------------------------------------------------------------------------
+  */
+
+  const formatTime = (dateValue) => {
+    if (!dateValue) {
+      return '--:--';
+    }
+
+    const date =
+      new Date(dateValue);
+
+    if (isNaN(date.getTime())) {
+      return '--:--';
+    }
+
+    return date.toLocaleTimeString(
+      [],
+      {
+        hour: '2-digit',
+        minute: '2-digit',
+      }
+    );
+  };
 
   /*
   |--------------------------------------------------------------------------
@@ -159,25 +243,28 @@ export default function WorkerActivity({
   */
 
   const handleSendMessage = async () => {
-    if (
-      !inputValue.trim() ||
-      sending ||
-      !currentProjectId
-    ) {
+    const text =
+      inputValue.trim();
+
+    if (!text || !currentProjectId) {
       return;
     }
 
     try {
-      setSending(true);
+      setSendingMessage(true);
+      setError('');
+      setMessage('');
 
-      const response = await axios.post(
-        `/api/projects/${currentProjectId}/worker-activity/chat`,
-        {
-          message: inputValue.trim(),
-        }
-      );
+      const response =
+        await axios.post(
+          `${API_URL}/projects/${currentProjectId}/worker-activity/chat`,
+          {
+            message: text,
+          }
+        );
 
-      const newMessage = response.data.message;
+      const newMessage =
+        response.data.message;
 
       setChatStream((previous) => [
         ...previous,
@@ -185,18 +272,23 @@ export default function WorkerActivity({
       ]);
 
       setInputValue('');
-    } catch (error) {
+    } catch (err) {
       console.error(
         'Error sending message:',
-        error
+        err
       );
 
       console.error(
         'Server response:',
-        error.response?.data
+        err.response?.data
+      );
+
+      setError(
+        err.response?.data?.message ||
+        'Unable to send message.'
       );
     } finally {
-      setSending(false);
+      setSendingMessage(false);
     }
   };
 
@@ -206,12 +298,10 @@ export default function WorkerActivity({
   |--------------------------------------------------------------------------
   */
 
-  const handleKeyDown = (e) => {
-    if (
-      e.key === 'Enter' &&
-      !e.shiftKey
-    ) {
-      e.preventDefault();
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+
       handleSendMessage();
     }
   };
@@ -223,50 +313,52 @@ export default function WorkerActivity({
   */
 
   const handleCheckIn = async () => {
-    if (
-      attendanceAction ||
-      !currentProjectId ||
-      attendanceData?.check_in
-    ) {
+    if (!currentProjectId) {
+      setError(
+        'No project selected.'
+      );
       return;
     }
 
     try {
-      setAttendanceAction(true);
-      setAttendanceError('');
-      setAttendanceMessage('');
+      setCheckingIn(true);
+      setError('');
+      setMessage('');
 
-      const response = await axios.post(
-        `/api/projects/${currentProjectId}/worker-activity/check-in`
-      );
+      const response =
+        await axios.post(
+          `${API_URL}/projects/${currentProjectId}/worker-activity/check-in`
+        );
 
       const newAttendance =
         response.data.attendance;
 
-      setAttendanceData(newAttendance);
+      setAttendance(
+        newAttendance
+      );
 
-      if (setAttendance) {
-        setAttendance(newAttendance);
-      }
+      setWorkDuration(null);
 
-      setAttendanceMessage(
+      setMessage(
         'You are checked in successfully.'
       );
-    } catch (error) {
+    } catch (err) {
       console.error(
-        'Check-in error:',
-        error
+        'Error checking in:',
+        err
       );
 
-      setAttendanceError(
-        error.response?.data?.message ||
+      console.error(
+        'Server response:',
+        err.response?.data
+      );
+
+      setError(
+        err.response?.data?.message ||
         'Unable to check in.'
       );
-
-      // Refresh in case attendance already exists
-      fetchAttendance();
     } finally {
-      setAttendanceAction(false);
+      setCheckingIn(false);
     }
   };
 
@@ -277,130 +369,83 @@ export default function WorkerActivity({
   */
 
   const handleCheckOut = async () => {
-    if (
-      attendanceAction ||
-      !currentProjectId ||
-      !attendanceData?.check_in ||
-      attendanceData?.check_out
-    ) {
+    if (!currentProjectId) {
+      setError(
+        'No project selected.'
+      );
       return;
     }
 
     try {
-      setAttendanceAction(true);
-      setAttendanceError('');
-      setAttendanceMessage('');
+      setCheckingOut(true);
+      setError('');
+      setMessage('');
 
-      const response = await axios.post(
-        `/api/projects/${currentProjectId}/worker-activity/check-out`
-      );
+      const response =
+        await axios.post(
+          `${API_URL}/projects/${currentProjectId}/worker-activity/check-out`
+        );
 
       const updatedAttendance =
         response.data.attendance;
 
-      setAttendanceData(updatedAttendance);
+      setAttendance(
+        updatedAttendance
+      );
 
-      if (setAttendance) {
-        setAttendance(updatedAttendance);
+      /*
+      |--------------------------------------------------------------------------
+      | Use backend duration when available
+      |--------------------------------------------------------------------------
+      */
+
+      if (response.data.work_duration) {
+        setWorkDuration(
+          response.data.work_duration
+        );
+      } else {
+        calculateDuration(
+          updatedAttendance.check_in,
+          updatedAttendance.check_out
+        );
       }
 
-      setAttendanceMessage(
-        'Your work shift is completed.'
+      setMessage(
+        'Work completed successfully.'
       );
-    } catch (error) {
+    } catch (err) {
       console.error(
-        'Check-out error:',
-        error
+        'Error checking out:',
+        err
       );
 
-      setAttendanceError(
-        error.response?.data?.message ||
+      console.error(
+        'Server response:',
+        err.response?.data
+      );
+
+      setError(
+        err.response?.data?.message ||
         'Unable to check out.'
       );
-
-      fetchAttendance();
     } finally {
-      setAttendanceAction(false);
+      setCheckingOut(false);
     }
   };
 
   /*
   |--------------------------------------------------------------------------
-  | FORMAT TIME
+  | ATTENDANCE STATE
   |--------------------------------------------------------------------------
   */
 
-  const formatTime = (value) => {
-    if (!value) {
-      return '--';
-    }
+  const isCheckedIn =
+    !!attendance?.check_in &&
+    !attendance?.check_out;
 
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return '--';
-    }
-
-    return date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | CALCULATE WORK DURATION
-  |--------------------------------------------------------------------------
-  */
-
-  const getWorkDuration = () => {
-    if (
-      !attendanceData?.check_in ||
-      !attendanceData?.check_out
-    ) {
-      return null;
-    }
-
-    const checkIn = new Date(
-      attendanceData.check_in
-    );
-
-    const checkOut = new Date(
-      attendanceData.check_out
-    );
-
-    const difference =
-      checkOut.getTime() -
-      checkIn.getTime();
-
-    if (difference <= 0) {
-      return null;
-    }
-
-    const totalMinutes = Math.floor(
-      difference / 60000
-    );
-
-    const hours = Math.floor(
-      totalMinutes / 60
-    );
-
-    const minutes =
-      totalMinutes % 60;
-
-    if (hours === 0) {
-      return `${minutes} min`;
-    }
-
-    if (minutes === 0) {
-      return `${hours}h`;
-    }
-
-    return `${hours}h ${minutes}min`;
-  };
-
-  const workDuration =
-    getWorkDuration();
+  const isCheckedOut =
+    !!attendance?.check_in &&
+    !!attendance?.check_out;
 
   /*
   |--------------------------------------------------------------------------
@@ -409,223 +454,380 @@ export default function WorkerActivity({
   */
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-5 space-y-5">
+
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+
+        <div>
+          <p className="text-[11px] text-gray-400 font-medium">
+            Worker Activity
+          </p>
+
+          <h2 className="text-xl font-bold text-gray-800">
+            Activity
+          </h2>
+        </div>
+
+        <button
+          onClick={() =>
+            onNavigate?.('home')
+          }
+          className="w-9 h-9 rounded-xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-gray-500"
+        >
+          <Menu size={18} />
+        </button>
+
+      </div>
+
+      {/* STATUS MESSAGE */}
+      {message && (
+        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl px-3 py-2.5 text-xs font-semibold">
+          <CheckCircle2 size={15} />
+          <span>{message}</span>
+        </div>
+      )}
+
+      {/* ERROR MESSAGE */}
+      {error && (
+        <div className="flex items-start gap-2 bg-red-50 border border-red-100 text-red-600 rounded-xl px-3 py-2.5 text-xs font-semibold">
+          <AlertCircle
+            size={15}
+            className="shrink-0 mt-0.5"
+          />
+
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* CHAT */}
-      <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 space-y-4">
+      <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
 
-        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-1">
-          <MessageSquare
-            size={16}
-            className="text-blue-600"
-          />
-          Supervisor Chat
-        </h3>
+        <div className="flex items-center justify-between mb-4">
 
-        <div className="space-y-3 max-h-[180px] overflow-y-auto pr-1 text-[11px]">
+          <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+            <MessageSquare
+              size={16}
+              className="text-blue-600"
+            />
 
-          {loadingChat ? (
-            <div className="text-center text-gray-400 py-6">
+            Supervisor Chat
+          </h3>
+
+          <span className="text-[9px] text-gray-400">
+            Project #{currentProjectId || '--'}
+          </span>
+
+        </div>
+
+        {/* MESSAGES */}
+        <div className="space-y-3 max-h-[210px] overflow-y-auto pr-1">
+
+          {loadingMessages ? (
+            <div className="text-center py-8 text-xs text-gray-400">
               Loading messages...
             </div>
           ) : chatStream.length === 0 ? (
-            <div className="text-center text-gray-400 py-6">
-              No messages yet.
+            <div className="text-center py-8">
+
+              <MessageSquare
+                size={22}
+                className="mx-auto text-gray-300 mb-2"
+              />
+
+              <p className="text-xs text-gray-400">
+                No messages yet.
+              </p>
+
+              <p className="text-[10px] text-gray-300 mt-1">
+                Start a conversation with your supervisor.
+              </p>
+
             </div>
           ) : (
-            chatStream.map((chat) => (
-              <div
-                key={chat.id}
-                className={`flex ${
-                  chat.sender === 'You'
-                    ? 'justify-end'
-                    : 'justify-start'
-                }`}
-              >
-                <div
-                  className={`p-2.5 rounded-2xl max-w-[80%] ${
-                    chat.sender === 'You'
-                      ? 'bg-blue-600 text-white rounded-tr-none'
-                      : 'bg-gray-100 text-gray-800 rounded-tl-none'
-                  }`}
-                >
-                  <p className="font-medium">
-                    {chat.message}
-                  </p>
+            chatStream.map(
+              (chat, index) => {
 
-                  <span className="text-[9px] opacity-60 block text-right mt-1">
-                    {chat.time}
-                  </span>
-                </div>
-              </div>
-            ))
+                const isMine =
+                  chat.sender === 'You';
+
+                return (
+                  <div
+                    key={
+                      chat.id ||
+                      index
+                    }
+                    className={`flex ${
+                      isMine
+                        ? 'justify-end'
+                        : 'justify-start'
+                    }`}
+                  >
+
+                    <div
+                      className={`max-w-[80%] px-3 py-2.5 rounded-2xl ${
+                        isMine
+                          ? 'bg-blue-600 text-white rounded-tr-none'
+                          : 'bg-gray-100 text-gray-800 rounded-tl-none'
+                      }`}
+                    >
+
+                      {!isMine && (
+                        <p className="text-[9px] font-bold text-blue-600 mb-1">
+                          {chat.sender}
+                        </p>
+                      )}
+
+                      <p className="text-[11px] font-medium leading-relaxed">
+                        {chat.message}
+                      </p>
+
+                      <div
+                        className={`flex items-center justify-end gap-1 mt-1 ${
+                          isMine
+                            ? 'text-white/60'
+                            : 'text-gray-400'
+                        }`}
+                      >
+                        <span className="text-[8px]">
+                          {chat.time}
+                        </span>
+
+                        {isMine && (
+                          <CheckCheck size={10} />
+                        )}
+                      </div>
+
+                    </div>
+                  </div>
+                );
+              }
+            )
           )}
 
         </div>
 
-        <div className="flex items-center space-x-2 pt-1">
+        {/* INPUT */}
+        <div className="flex items-center gap-2 pt-3 mt-3 border-t border-gray-100">
 
           <input
             type="text"
             value={inputValue}
-            onChange={(e) =>
-              setInputValue(e.target.value)
+            onChange={(event) =>
+              setInputValue(
+                event.target.value
+              )
             }
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
-            disabled={sending}
-            className="flex-1 bg-gray-50 text-xs border border-gray-200 rounded-full px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+            disabled={
+              sendingMessage ||
+              !currentProjectId
+            }
+            className="flex-1 bg-gray-50 text-xs border border-gray-200 rounded-full px-4 py-2.5 outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
           />
 
           <button
             onClick={handleSendMessage}
             disabled={
-              sending ||
-              !inputValue.trim()
+              sendingMessage ||
+              !inputValue.trim() ||
+              !currentProjectId
             }
-            className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white flex items-center justify-center shrink-0 transition"
           >
             <Send
-              size={12}
+              size={13}
               className="ml-0.5"
             />
           </button>
 
         </div>
+
       </div>
 
       {/* ATTENDANCE */}
-      <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 space-y-3">
+      <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
 
-        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-1">
-          <Clock
-            size={16}
-            className="text-emerald-500"
-          />
-          Shift Registration
-        </h3>
+        <div className="flex items-center justify-between mb-4">
 
-        {attendanceLoading ? (
-          <div className="text-[11px] text-gray-400">
-            Loading attendance...
-          </div>
-        ) : attendanceData ? (
-          <div className="bg-gray-50 rounded-xl px-3 py-3 text-[11px] space-y-2">
+          <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+            <Clock
+              size={16}
+              className="text-emerald-500"
+            />
 
-            {/* CHECK IN */}
-            <div className="flex justify-between">
-              <span className="text-gray-500">
-                Check in
+            Shift Registration
+          </h3>
+
+          {attendance?.status && (
+            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[9px] font-bold uppercase">
+              {attendance.status}
+            </span>
+          )}
+
+        </div>
+
+        {/* TIMES */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+
+          {/* CHECK IN */}
+          <div className="bg-gray-50 rounded-2xl p-3">
+
+            <div className="flex items-center gap-1.5 text-gray-400 mb-1">
+
+              <Clock size={12} />
+
+              <span className="text-[9px] font-semibold uppercase">
+                Check In
               </span>
 
-              <span className="font-semibold text-gray-700">
-                {formatTime(
-                  attendanceData.check_in
-                )}
-              </span>
             </div>
 
-            {/* CHECK OUT */}
-            {attendanceData.check_out && (
-              <div className="flex justify-between">
-                <span className="text-gray-500">
-                  Check out
-                </span>
+            <p className="text-sm font-bold text-gray-800">
+              {attendance?.check_in
+                ? formatTime(
+                    attendance.check_in
+                  )
+                : '--:--'}
+            </p>
 
-                <span className="font-semibold text-gray-700">
-                  {formatTime(
-                    attendanceData.check_out
-                  )}
-                </span>
-              </div>
-            )}
+          </div>
 
-            {/* STATUS */}
-            <div className="flex justify-between">
-              <span className="text-gray-500">
-                Status
+          {/* CHECK OUT */}
+          <div className="bg-gray-50 rounded-2xl p-3">
+
+            <div className="flex items-center gap-1.5 text-gray-400 mb-1">
+
+              <LogOut size={12} />
+
+              <span className="text-[9px] font-semibold uppercase">
+                Check Out
               </span>
 
-              <span className="font-semibold text-emerald-600 capitalize">
-                {attendanceData.check_out
-                  ? 'Work done'
-                  : attendanceData.status}
-              </span>
             </div>
 
-            {/* WORK DURATION */}
-            {workDuration && (
-              <div className="flex justify-between pt-2 border-t border-gray-200">
-                <span className="text-gray-500">
-                  Work duration
-                </span>
+            <p className="text-sm font-bold text-gray-800">
+              {attendance?.check_out
+                ? formatTime(
+                    attendance.check_out
+                  )
+                : '--:--'}
+            </p>
 
-                <span className="font-semibold text-blue-600">
-                  {workDuration}
-                </span>
+          </div>
+
+        </div>
+
+        {/* DURATION */}
+        {workDuration && (
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 mb-4">
+
+            <div className="flex items-center gap-2">
+
+              <CheckCircle2
+                size={16}
+                className="text-blue-600"
+              />
+
+              <div>
+
+                <p className="text-[9px] text-blue-500 font-semibold uppercase">
+                  Work Completed
+                </p>
+
+                <p className="text-sm font-bold text-blue-700">
+                  {workDuration} worked
+                </p>
+
               </div>
-            )}
 
-          </div>
-        ) : (
-          <div className="text-[11px] text-gray-400">
-            You have not checked in today.
+            </div>
+
           </div>
         )}
 
-        {/* SUCCESS MESSAGE */}
-        {attendanceMessage && (
-          <div className="text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
-            {attendanceMessage}
-          </div>
-        )}
-
-        {/* ERROR MESSAGE */}
-        {attendanceError && (
-          <div className="text-[11px] text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-            {attendanceError}
-          </div>
-        )}
-
+        {/* BUTTONS */}
         <div className="grid grid-cols-2 gap-3">
 
           {/* CHECK IN */}
           <button
             onClick={handleCheckIn}
             disabled={
-              attendanceAction ||
-              !!attendanceData?.check_in
+              checkingIn ||
+              checkingOut ||
+              isCheckedIn ||
+              isCheckedOut ||
+              !currentProjectId
             }
-            className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 ${
+              isCheckedIn ||
+              isCheckedOut
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+            }`}
           >
-            {attendanceData?.check_in
+
+            <CheckCircle2 size={14} />
+
+            {checkingIn
+              ? 'Checking...'
+              : isCheckedIn
               ? 'Checked In'
-              : attendanceAction
-              ? 'Checking In...'
+              : isCheckedOut
+              ? 'Completed'
               : 'Check In'}
+
           </button>
 
           {/* CHECK OUT */}
           <button
             onClick={handleCheckOut}
             disabled={
-              attendanceAction ||
-              !attendanceData?.check_in ||
-              !!attendanceData?.check_out
+              checkingOut ||
+              checkingIn ||
+              !isCheckedIn ||
+              !currentProjectId
             }
-            className="bg-red-50 border border-red-100 text-red-500 hover:bg-red-100 text-xs font-bold py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 ${
+              isCheckedIn
+                ? 'bg-red-500 hover:bg-red-600 text-white'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            }`}
           >
-            {attendanceData?.check_out
-              ? 'Checked Out'
-              : attendanceAction
-              ? 'Checking Out...'
+
+            <LogOut size={14} />
+
+            {checkingOut
+              ? 'Checking...'
               : 'Check Out'}
+
           </button>
 
         </div>
+
+        {/* ATTENDANCE INFO */}
+        {!attendance && (
+          <p className="text-center text-[10px] text-gray-400 mt-3">
+            You have not checked in today.
+          </p>
+        )}
+
+        {isCheckedIn && (
+          <p className="text-center text-[10px] text-emerald-600 font-medium mt-3">
+            You are currently working.
+          </p>
+        )}
+
+        {isCheckedOut && (
+          <p className="text-center text-[10px] text-blue-600 font-medium mt-3">
+            Your shift is finished for today.
+          </p>
+        )}
+
       </div>
 
     </div>
   );
 }
-
+ 

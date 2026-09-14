@@ -2,37 +2,77 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Models\InspectionCheck;
 use App\Models\NonConformity;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class NonConformityController extends Controller
 {
-    public function index($projectId)
+    public function index($projectId): JsonResponse
     {
-        return NonConformity::where('project_id', $projectId)
-            ->latest()
-            ->get();
+        return response()->json(
+            NonConformity::where('project_id', $projectId)
+                ->latest()
+                ->get()
+        );
     }
 
-    public function show($id)
+    public function show($id): JsonResponse
     {
-        return NonConformity::findOrFail($id);
+        return response()->json(
+            NonConformity::findOrFail($id)
+        );
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
-        $nc = NonConformity::create([
-            'project_id' => $request->project_id,
-            'inspection_check_id' => $request->inspection_check_id,
-            'reported_by' => 1,
-            'assigned_to' => $request->assigned_to,
-            'title' => $request->title,
-            'description' => $request->description,
-            'severity' => $request->severity,
-            'status' => 'open',
-            'due_date' => $request->due_date,
+        $validated = $request->validate([
+            'project_id' => 'required|exists:projects,id',
+            'inspection_check_id' =>
+                'required|exists:inspection_checks,id',
+            'assigned_to' => 'nullable|exists:users,id',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'severity' => 'required|in:low,medium,high',
+            'due_date' => 'nullable|date',
         ]);
 
-        return response()->json($nc);
+        $check = InspectionCheck::with('inspection')
+            ->findOrFail(
+                $validated['inspection_check_id']
+            );
+
+        if (
+            !$check->inspection ||
+            $check->inspection->project_id != $validated['project_id']
+        ) {
+            return response()->json([
+                'message' =>
+                    'Inspection check does not belong to this project.',
+            ], 422);
+        }
+
+        $nc = NonConformity::create([
+            'project_id' => $validated['project_id'],
+            'inspection_check_id' =>
+                $validated['inspection_check_id'],
+            'reported_by' => 54,
+            'assigned_to' =>
+                $validated['assigned_to'] ?? null,
+            'title' => $validated['title'],
+            'description' =>
+                $validated['description'] ?? null,
+            'severity' => $validated['severity'],
+            'status' => 'open',
+            'due_date' =>
+                $validated['due_date'] ?? null,
+        ]);
+
+        return response()->json([
+            'message' =>
+                'Non-conformity created successfully.',
+            'data' => $nc,
+        ], 201);
     }
 }

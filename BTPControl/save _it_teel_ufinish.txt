@@ -1,0 +1,2012 @@
+<?php
+
+namespace App\Http\Controllers;
+
+abstract class Controller
+{
+    //
+}
+<?php
+
+namespace App\Http\Controllers;
+ use Illuminate\Http\JsonResponse;
+
+use App\Models\Client;
+use App\Models\Project;
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+
+class EngineerDashboardController extends Controller
+{
+    
+    public function filterProjects(Request $request)
+    {
+        $query = Project::with(['users' => function ($q) {
+            $q->wherePivot('role_on_proj', 'chef_chantier');
+        }]);
+
+        if ($request->filled('name')) {
+            $query->where('name', 'LIKE', $request->name . '%');
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('client_id')) {
+            $query->where('client_id', $request->client_id);
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', 'LIKE', '%' . $request->type . '%');
+        }
+
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $query->whereBetween('start_date', [
+                $request->start_date,
+                $request->end_date
+            ]);
+        }
+
+        if ($request->filled('chef_id')) {
+            $query->whereHas('users', function ($q) use ($request) {
+                $q->where('users.id', $request->chef_id)
+                  ->where('role_on_proj', 'chef_chantier');
+            });
+        }
+
+        return response()->json([
+            'data' => $query->get()
+        ]);
+    }
+
+    public function searchProject(Request $request)
+    {
+        return response()->json([
+            'data' => Project::where('name', 'LIKE', $request->name . '%')->get()
+        ]);
+    }
+
+    public function filtersData()
+    {
+        $types = Project::whereNotNull('type')->pluck('type')
+            ->map(fn ($t) => trim($t))
+            ->unique()
+            ->values();
+
+        $chefs = User::whereHas('projects', function ($q) {
+                $q->where('role_on_proj', 'chef_chantier');
+            })
+            ->select('id', 'name')
+            ->get();
+
+            
+        $statuses = [
+            'planned',
+            'active',
+            'paused',
+            'completed',
+            'cancelled'
+        ];
+
+        return response()->json([
+            'types' => $types,
+            'chefs' => $chefs,
+            'statuses' => $statuses,
+        ]);
+    }
+
+public function destroy(Project $project): JsonResponse
+{
+    try {
+        $project->users()->detach();
+
+        $project->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Project deleted successfully.'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to delete project.',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+ 
+
+public function update(Request $request, Project $project)
+{
+    $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'type' => 'nullable|string|max:255',
+        'location' => 'nullable|string|max:255',
+        'start_date' => 'nullable|date',
+        'end_date' => 'nullable|date|after_or_equal:start_date',
+        'budget' => 'nullable|numeric|min:0',
+        'status' => 'required|in:planned,active,paused,completed,cancelled',
+    ]);
+
+    $project->update($validated);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Project updated successfully.',
+        'project' => $project->fresh(),
+    ]);
+}
+
+    public function stats()
+    {
+        return response()->json([
+            ["title" => "Total Projects", "value" => Project::count()],
+            ["title" => "Active", "value" => Project::where('status', 'active')->count()],
+            ["title" => "On Hold", "value" => Project::where('status', 'paused')->count()],
+            ["title" => "Delayed", "value" => Project::where('end_date', '<', Carbon::today())->count()],
+            ["title" => "Completed", "value" => Project::where('status', 'completed')->count()],
+            ["title" => "Total Budget", "value" => Project::sum('budget')],
+        ]);
+    }
+ 
+public function table(Request $request)
+{
+    // Pass 15 directly into the paginate method
+    $projects = Project::with([
+        'users' => function ($q) {
+            $q->wherePivot('role_on_proj', 'chef_chantier');
+        }
+    ])->latest()->paginate(15); // Changed from 5 to 15
+
+    return response()->json([
+        'data' => $projects->map(function ($project) {
+            $chef = $project->users->first();
+
+            return [
+                'id' => $project->id,
+                'name' => $project->name,
+                'type' => $project->type ?? 'Construction',
+                'chef' => $chef?->name,
+                'chef_id' => $chef?->id,
+                'start_date' => $project->start_date,
+                'end_date' => $project->end_date,
+                'progress' => 0,
+                'status' => $project->status,
+                'budget' => $project->budget,
+                'issues' => 0,
+                'location' => $project->location,
+            ];
+        }),
+
+        'current_page' => $projects->currentPage(),
+        'last_page' => $projects->lastPage(),
+        'per_page' => $projects->perPage(),
+        'total' => $projects->total(),
+    ]);
+}
+
+
+    public function clients()
+    {
+        return Client::latest()->get();
+    }
+public function siteManagers($projectId)
+{
+    $managers = ProjectUser::with('user')
+        ->where('project_id', $projectId)
+        ->where('role_on_proj', 'chef_chantier')
+        ->get()
+        ->map(function ($item) {
+            return [
+                'id' => $item->user->id,
+                'name' => $item->user->name,
+            ];
+        });
+
+    return response()->json($managers);
+}
+}<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Task;
+use App\Models\Inspection;
+use App\Models\InspectionCheck;
+
+class ExecutionController extends Controller
+{
+    public function getquality($inspectionId)
+    {
+        $inspection = Inspection::where('id', $inspectionId)
+            ->where('type', 'quality')
+            ->firstOrFail();
+
+        $checks = InspectionCheck::where('inspection_id', $inspection->id)
+            ->select(
+                'id',
+                'inspection_id',
+                'check_name',
+                'required_value',
+                'actual_value',
+                'unit',
+                'status',
+                'severity',
+                'comment'
+            )
+            ->get();
+
+        return response()->json($checks);
+    }
+
+public function getsafety($projectId)
+{
+    $checks = InspectionCheck::whereHas('inspection', function ($q) use ($projectId) {
+        $q->where('project_id', $projectId)
+          ->where('type', 'safety');
+    })->get();
+
+    $total = $checks->count();
+
+    $low = $checks->where('severity', 'low')->count();
+    $medium = $checks->where('severity', 'medium')->count();
+    $high = $checks->where('severity', 'high')->count();
+
+    return response()->json([
+        [
+            "name" => "Low",
+            "value" => $total ? round(($low / $total) * 100) : 0,
+            "color" => "#22c55e"
+        ],
+        [
+            "name" => "Medium",
+            "value" => $total ? round(($medium / $total) * 100) : 0,
+            "color" => "#f59e0b"
+        ],
+        [
+            "name" => "High",
+            "value" => $total ? round(($high / $total) * 100) : 0,
+            "color" => "#ef4444"
+        ]
+    ]);
+}
+
+  public function execution($projectId)
+{
+    // =========================
+    // PHASES
+    // =========================
+
+    $phases = Task::where('project_id', $projectId)
+        ->select('id', 'title', 'progress')
+        ->get();
+   
+    $totalPhases = $phases->count();
+
+    $completedPhases = $phases->where('progress', 100)->count();
+    
+    $globalProgress = $totalPhases > 0
+        ? round($phases->avg('progress'))
+        : 0;
+
+    // =========================
+    // QUALITY INSPECTION
+    // =========================
+
+    $qualityInspection = Inspection::where('project_id', $projectId)
+        ->where('type', 'quality')
+        ->latest()
+        ->first();
+
+    // =========================
+    // INSPECTIONS LIST
+    // =========================
+
+    $inspections = Inspection::where('project_id', $projectId)
+        ->latest()
+        ->take(5)
+        ->get();
+
+    // =========================
+    // NON CONFORMITIES
+    // =========================
+
+    $nonConformities = InspectionCheck::where('status', 'fail')
+        ->whereHas('inspection', function ($q) use ($projectId) {
+            $q->where('project_id', $projectId);
+        })
+        ->get();
+
+    $failures = $nonConformities->count();
+
+    // =========================
+    // QUALITY SCORE
+    // =========================
+
+    $totalQualityChecks = InspectionCheck::whereHas('inspection', function ($q) use ($projectId) {
+        $q->where('project_id', $projectId)
+          ->where('type', 'quality');
+    })->count();
+
+    $passedQualityChecks = InspectionCheck::where('status', 'ok')
+        ->whereHas('inspection', function ($q) use ($projectId) {
+            $q->where('project_id', $projectId)
+              ->where('type', 'quality');
+        })
+        ->count();
+
+    $qualityScore = $totalQualityChecks > 0
+        ? round(($passedQualityChecks / $totalQualityChecks) * 100)
+        : 0;
+
+    // =========================
+    // SAFETY SCORE
+    // =========================
+
+    $totalSafetyChecks = InspectionCheck::whereHas('inspection', function ($q) use ($projectId) {
+        $q->where('project_id', $projectId)
+          ->where('type', 'safety');
+    })->count();
+
+    $passedSafetyChecks = InspectionCheck::where('status', 'ok')
+        ->whereHas('inspection', function ($q) use ($projectId) {
+            $q->where('project_id', $projectId)
+              ->where('type', 'safety');
+        })
+        ->count();
+
+    $safetyScore = $totalSafetyChecks > 0
+        ? round(($passedSafetyChecks / $totalSafetyChecks) * 100)
+        : 0;
+
+    // =========================
+    // OPEN INSPECTIONS
+    // =========================
+
+    $openInspections = Inspection::where('project_id', $projectId)
+        ->where('status', 'open')
+        ->count();
+
+    // =========================
+    // RESPONSE
+    // =========================
+
+    return response()->json([
+        'phases' => $phases,
+
+        'qualityInspection' => $qualityInspection,
+
+        'inspections' => $inspections,
+
+        'nonConformities' => $nonConformities,
+
+        'kpis' => [
+            'global_progress' => $globalProgress,
+            'completed_phases' => $completedPhases,
+            'total_phases' => $totalPhases,
+
+            'quality_score' => $qualityScore,
+            'safety_score' => $safetyScore,
+
+            'failures' => $failures,
+            'open_inspections' => $openInspections,
+        ],
+    ]);
+}
+}<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+
+class IncidentController extends Controller
+{
+    public function getIncidents($project)
+{
+ 
+}
+<?php
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\InspectionCheck;
+
+class InspectionCheckController extends Controller
+{
+    public function store(Request $request)
+    {
+        $request->validate([
+            'inspection_id' => 'required|exists:inspections,id',
+            'check_name' => 'required|string',
+            'required_value' => 'nullable|string',
+            'actual_value' => 'nullable|string',
+            'unit' => 'nullable|string',
+            'status' => 'required|in:pending,ok,fail',
+            'severity' => 'nullable|in:low,medium,high',
+            'comment' => 'nullable|string',
+        ]);
+
+        $check = InspectionCheck::create([
+            'inspection_id' => $request->inspection_id,
+            'check_name' => $request->check_name,
+            'required_value' => $request->required_value,
+            'actual_value' => $request->actual_value,
+            'unit' => $request->unit,
+            'status' => $request->status,
+            'severity' => $request->severity,
+            'comment' => $request->comment,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Checklist created successfully.',
+            'data' => $check
+        ], 201);
+    }
+}<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Inspection;
+use App\Models\InspectionCheck;
+use App\Models\NonConformity;
+use App\Models\Media;
+use Illuminate\Http\Request;
+
+class InspectionController extends Controller
+{
+    // LIST INSPECTIONS
+    public function index($projectId)
+    {
+        return Inspection::where('project_id', $projectId)
+            ->latest()
+            ->get();
+    }
+
+    // CREATE INSPECTION
+    public function store(Request $request)
+    {
+        $request->validate([
+            'project_id' => 'required|exists:projects,id',
+            'title' => 'required|string',
+            'type' => 'required|in:quality,safety',
+            'inspection_date' => 'required|date',
+            'inspected_by' => 'required|exists:users,id',
+            'notes' => 'nullable|string',
+        ]);
+
+        $inspection = Inspection::create([
+            'project_id' => $request->project_id,
+            'task_id' => null,
+            'inspected_by' => $request->inspected_by,
+            'type' => $request->type,
+            'title' => $request->title,
+            'inspection_date' => $request->inspection_date,
+            'status' => 'draft',
+            'notes' => $request->notes,
+        ]);
+
+        return response()->json($inspection, 201);
+    }
+
+    // SINGLE INSPECTION
+    public function show($id)
+    {
+        $inspection = Inspection::with('checks')->findOrFail($id);
+
+        $photos = Media::where('related_type', 'inspection')
+            ->where('related_id', $inspection->id)
+            ->where('type', 'photo')
+            ->get();
+
+        return response()->json([
+            'id' => $inspection->id,
+            'project_id' => $inspection->project_id,
+            'title' => $inspection->title,
+            'date' => $inspection->inspection_date,
+            'status' => $inspection->status,
+            'checks' => $inspection->checks,
+            'photos' => $photos,
+        ]);
+    }
+
+    // NON CONFORMITIES
+    public function nonConformities($projectId)
+    {
+        return NonConformity::where('project_id', $projectId)
+            ->latest()
+            ->get();
+    }
+}<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\NonConformity;
+
+class NonConformityController extends Controller
+{
+    public function index($projectId)
+    {
+        return NonConformity::where('project_id', $projectId)
+            ->latest()
+            ->get();
+    }
+
+    public function show($id)
+    {
+        return NonConformity::findOrFail($id);
+    }
+
+    public function store(Request $request)
+    {
+        $nc = NonConformity::create([
+            'project_id' => $request->project_id,
+            'inspection_check_id' => $request->inspection_check_id,
+            'reported_by' => 1,
+            'assigned_to' => $request->assigned_to,
+            'title' => $request->title,
+            'description' => $request->description,
+            'severity' => $request->severity,
+            'status' => 'open',
+            'due_date' => $request->due_date,
+        ]);
+
+        return response()->json($nc);
+    }
+}
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\Project;
+use App\Models\Task;
+use Carbon\Carbon;
+
+class ProjectController extends Controller
+{
+    public function getProjects()
+{
+    $projects = Project::select('id', 'name')
+        ->orderBy('created_at', 'desc')
+        ->get();
+    return response()->json($projects);
+}
+public function getProjectWorkers($projectId)
+{
+    $project = Project::with('users')->findOrFail($projectId);
+
+    return response()->json($project->users);
+}
+public function stats($projectId)
+{
+    $project = Project::findOrFail($projectId);
+
+    $tasks = Task::where('project_id', $projectId)->get();
+
+    $totalTasks = $tasks->count();
+
+    $completed = $tasks->where('status', 'completed')->count();
+
+    $inProgress = $tasks->where('status', 'in_progress')->count();
+
+    $delayed = $tasks->where('status', '!=', 'completed')
+        ->where('due_date', '<', Carbon::now())
+        ->count();
+
+    $progress = $totalTasks > 0
+        ? round(($completed / $totalTasks) * 100)
+        : 0;
+
+    return response()->json([
+        [
+            "title" => "Project Progress",
+            "value" => $progress,
+            "suffix" => "%",
+            "icon" => "TrendingUp",
+            "color" => "blue",
+        ],
+        [
+            "title" => "Total Tasks",
+            "value" => $totalTasks,
+            "icon" => "Grid3x3",
+            "color" => "indigo",
+        ],
+        [
+            "title" => "Completed Tasks",
+            "value" => $completed,
+            "icon" => "CheckCircle",
+            "color" => "emerald",
+        ],
+        [
+            "title" => "In Progress",
+            "value" => $inProgress,
+            "icon" => "Activity",
+            "color" => "blue",
+        ],
+        [
+            "title" => "Delayed Tasks",
+            "value" => $delayed,
+            "icon" => "AlertTriangle",
+            "color" => "red",
+        ],
+    ]);
+}
+}
+<?php
+
+ 
+ 
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\ProjectUser;
+use App\Models\User;
+
+class ProjectUserController extends Controller
+{
+    public function siteManagers($projectId)
+    {
+        $managers = ProjectUser::where('project_users.project_id', $projectId)
+            ->where('project_users.role_on_proj', 'chef_chantier')
+            ->join('users', 'users.id', '=', 'project_users.user_id')
+            ->select(
+                'users.id',
+                'users.name'
+            )
+            ->get();
+
+        return response()->json($managers);
+    }
+}<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\ProjectUser;
+use App\Models\User;
+
+class QuickActionController extends Controller
+{
+    public function index($projectId)
+    {
+        // return ONLY site managers of this project
+        $managers = ProjectUser::with('user')
+            ->where('project_id', $projectId)
+            ->where('role_on_proj', 'chef_chantier')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->user->id,
+                    'name' => $item->user->name,
+                ];
+            });
+
+        return response()->json($managers);
+    }
+}<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\ProjectUser;
+use App\Models\Project ;
+use App\Models\Report;
+ use App\Models\Media;
+use App\Models\Task;
+use App\Models\Resource;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use App\Models\Attendance;
+use App\Models\InspectionCheck;
+use Illuminate\Support\Carbon;
+use App\Models\Inspection;
+class SiteManagerController extends Controller
+{ 
+   public function getProjects()
+{
+      //$userId = auth()->id();    
+$userId = 53; 
+
+    $projects = ProjectUser::where('user_id', $userId)
+    ->where('role_on_proj', 'chef_chantier')
+        ->with('project')
+        ->get();
+
+    return response()->json($projects);
+}
+public function getProjectPhoto($project)
+{
+    $photo = Media::where('project_id', $project)
+        ->where('type', 'photo')
+        ->where('related_type', 'project')
+        ->where('related_id', $project)
+        ->latest()
+        ->first();
+
+    return response()->json([
+        'photo' => $photo
+    ]);
+}
+    public function CreateTask(Request $request)
+    {
+        $request->validate([
+            'project_id' => 'required|exists:projects,id',
+            'assigned_to' => 'nullable|exists:users,id',
+            'title' => 'required|string',
+            'description' => 'nullable|string',
+            'priority' => 'required|in:low,medium,high,urgent',
+            'estimated_hours' => 'nullable|numeric',
+            'due_date' => 'nullable|date',
+            'begin_date' => 'nullable|date', // IMPORTANT
+        ]);
+
+        $task = Task::create([
+            'project_id' => $request->project_id,
+            'assigned_to' => $request->assigned_to,
+            'parent_task_id' => $request->parent_task_id,
+            'title' => $request->title,
+            'description' => $request->description,
+            'priority' => $request->priority,
+            'estimated_hours' => $request->estimated_hours,
+            'due_date' => $request->due_date,
+            'begin_date' => $request->begin_date, // IMPORTANT
+            'status' => 'pending',
+            'progress' => 0,
+        ]);
+        }
+    public function CreateWorker(Request $request, $project)
+    {
+         $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'nullable|email|unique:users,email',
+            'phone' => 'nullable|string|max:30',
+        ]);
+
+        return DB::transaction(function () use ($validated, $project) {
+
+            // Create worker account
+            $worker = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'] ?? null,
+                'phone' => $validated['phone'] ?? null,
+
+                // Worker NEVER receives this password
+                'password' => Hash::make(Str::random(40)),
+
+                'role' => 'worker',
+                'type_user' => 'worker',
+            ]);
+
+            // Automatically assign worker to project
+            ProjectUser::create([
+                'project_id' => $project,
+                'user_id' => $worker->id,
+                'role_on_proj' => 'worker',
+            ]);
+
+            return response()->json([
+                'message' => 'Worker created and assigned successfully.',
+
+                'worker' => [
+                    'id' => $worker->id,
+                    'name' => $worker->name,
+                    'email' => $worker->email,
+                    'phone' => $worker->phone,
+                ],
+            ], 201);
+        });
+        }
+    public function statsSiteManager($project)
+    {
+        $phases = Task::where('project_id', $project)
+        ->select('id', 'title', 'progress')
+        ->get();
+        $totalPhases = $phases->count();
+
+         $globalProgress = $totalPhases > 0
+        ? round($phases->avg('progress'))
+        : 0;
+
+        $workers = ProjectUser::where('project_id', $project)
+            ->where('role_on_proj', 'worker')
+            ->count();
+
+        $tasks = Task::where('project_id', $project)->count();
+        $incidents = InspectionCheck::whereHas('inspection', function ($query) use ($project) {
+                     $query->where('project_id', $project);
+        })->where('status', 'fail')->count();
+
+         $resources = Resource::where('project_id', $project)->count();
+
+         return response()->json([
+                 'globalProgress' => $globalProgress,
+                 'workers' => $workers,
+                 'tasks' => $tasks,
+                 'incidents' => $incidents,
+                 'resources' => $resources,
+]);
+    }
+public function stats_selectedproject($project)   
+{   
+    // 1. Fetch Workers and their today's attendance status & tasks
+    $workers = ProjectUser::where('project_id', $project)   
+        ->where('role_on_proj', 'worker')   
+        ->with([
+            'user:id,name,role,phone,email',
+            'user.tasks:id,assigned_to,title,description,due_date,status,progress', // Tasks attached via user
+            'project:id,name'
+        ])
+        ->get()  
+        ->map(function ($worker) use ($project) {   
+            $attendance = \App\Models\Attendance::where('project_id', $project)   
+                ->where('user_id', $worker->user_id)   
+                ->whereDate('check_in', today())   
+                ->first();   
+
+            return [   
+                'project_name' => $worker->project?->name,
+                'id'           => $worker->user?->id,   
+                'name'         => $worker->user?->name,   
+                'role'         => $worker->role_on_proj,   
+                'phone'        => $worker->user?->phone,  
+                'email'        => $worker->user?->email, 
+                'joined_at'    => $worker->created_at?->format('Y-m-d'),  
+                'status'       => $attendance?->status ?? 'absent',
+                
+                // Map array of tasks assigned to this worker
+                'Workertasks'        => $worker->user?->tasks->map(function ($task) {
+                    return [
+                        'id'          => $task->id,
+                        'title'       => $task->title,
+                        'description' => $task->description,
+                       ' due_date' => $task->due_date ? Carbon::parse($task->due_date)->format('Y-m-d') : null,
+                        'status'      => $task->status ?? 'Pending',
+                        'progress'    => $task->progress ?? 0,
+                    ];
+                }) ?? []
+            ];   
+        });
+   
+    // 2. Fetch Tasks with parent and assigned user relationships
+    $ProjecTasks = Task::where('project_id', $project)   
+        ->with([   
+            'parent:id,title',   
+            'assignedUser:id,name'   
+        ])   
+        ->get()   
+        ->map(function ($task) {   
+            return [   
+                'id'          => $task->id,   
+                'task_name'   => $task->title,   
+                'assigned_to' => $task->assignedUser?->name,
+                'deadline'    => $task->deadline,   
+                'progress'    => $task->progress,   
+                'parent_task' => $task->parent?->title,   
+            ];   
+        });   
+   
+    // 3. Return combined JSON response
+    return response()->json([
+        'workers' => $workers,
+        'ProjecTasks'   => $ProjecTasks
+    ]);   
+}
+ 
+public function getWorkerAttendance($workerId)
+{
+    $history = Attendance::where('user_id', $workerId)
+        ->orderBy('check_in', 'desc')
+        ->get()
+        ->map(function ($record) {
+            return [
+                'id'       => $record->id,
+                'date'     => $record->check_in ? Carbon::parse($record->check_in)->format('Y-m-d') : 'N/A',
+                'check_in' => $record->check_in ? Carbon::parse($record->check_in)->format('H:i A') : 'N/A',
+                'status'   => strtolower($record->status ?? 'absent'),
+            ];
+        });
+
+    return response()->json($history);
+}
+
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE TASK FOR WORKER
+    |--------------------------------------------------------------------------
+    */
+    public function createWorkerTask(Request $request)
+{
+   // 1. Fetch Workers and their today's attendance status
+    $task = Task::create([
+        'project_id' => 3, // 🔥 HARD CODED FIX
+        'parent_task_id' => $request->parent_task_id,
+        'assigned_to' => $request->assigned_to,
+
+        'title' => $request->title,
+        'description' => $request->description,
+
+        'priority' => $request->priority,
+        'status' => 'pending',
+        'progress' => 0,
+
+        'estimated_hours' => $request->estimated_hours,
+        'begin_date' => $request->begin_date,
+        'due_date' => $request->due_date,
+    ]);
+
+    return response()->json([
+        'message' => 'Task created successfully',
+        'task' => $task
+    ], 201);
+}
+public function taskFormData($project)
+{
+   //$userId = auth()->id();     
+     $userId = 53;
+
+    return response()->json([
+        'projects' => ProjectUser::where('user_id', $userId)
+            ->where('role_on_proj', 'chef_chantier')
+            ->with(['project:id,name'])
+            ->get(),
+
+        'users' => ProjectUser::where('project_id', $project)
+            ->where('role_on_proj', 'worker')
+            ->with(['user:id,name'])
+            ->get(),
+
+        'tasks' => Task::select('id', 'title')
+            ->where('project_id', $project)
+            ->whereNull('parent_task_id')
+            ->get(),
+    ]);
+}
+ public function tasks_selectedProject($project){
+       return response()->json([
+          'tasks'=> Task::where('project_id', $project)->get()
+       ]);
+
+ }
+public function removeWorkerFromProject($project, $worker)
+{
+    // Find and delete the association between worker and project
+    $deleted = ProjectUser::where('project_id', $project)
+        ->where('user_id', $worker)
+        ->where('role_on_proj', 'worker')
+        ->delete();
+
+    if ($deleted) {
+        return response()->json(['message' => 'Worker removed successfully'], 200);
+    }
+
+    return response()->json(['message' => 'Worker not found in project'], 444);
+}
+public function getIncidents($project)
+{
+// pending→ The check has been created, but has not been evaluated yet
+// ok→ The check was evaluated and everything is correct
+// fail→ The check was evaluated and something is wrong
+
+    $incidents = InspectionCheck::whereHas('inspection', function ($query) use ($project) {
+        $query->where('project_id', $project);
+    })
+    ->where('status', 'fail')
+    ->with('inspection')
+    ->latest()
+    ->get()
+    ->map(function ($check) {
+        return [
+            'id' => $check->id,
+            'title' => $check->check_name,
+            'severity' => ucfirst($check->severity ?? 'low'),
+            'dateTime' => $check->inspection?->inspection_date
+                ? Carbon::parse($check->inspection->inspection_date)->format('d/m/Y')
+                : 'No date',
+            'status' => $check->inspection?->status === 'completed'
+                ? 'Closed'
+                : 'Open',
+        ];
+    });
+
+    return response()->json($incidents);
+
+}
+public function storeIncident(Request $request, $project)
+{
+    $validated = $request->validate([
+        'title' => 'required|string|max:255',
+        'type' => 'required|in:safety,quality',
+        'task_id' => 'nullable|exists:tasks,id',
+        'inspection_date' => 'nullable|date',
+        'notes' => 'nullable|string',
+
+        'checks' => 'required|array|min:1',
+
+        'checks.*.check_name' => 'required|string|max:255',
+        'checks.*.required_value' => 'nullable|string|max:255',
+        'checks.*.actual_value' => 'nullable|string|max:255',
+        'checks.*.unit' => 'nullable|string|max:255',
+        'checks.*.status' => 'required|in:pending,ok,fail',
+        'checks.*.severity' => 'nullable|in:low,medium,high',
+        'checks.*.comment' => 'nullable|string',
+    ]);
+
+    try {
+        DB::beginTransaction();
+
+        // Temporary until authentication is connected
+        $userId = 54;
+
+        $inspection = Inspection::create([
+            'project_id' => $project,
+            'task_id' => $validated['task_id'] ?? null,
+            'inspected_by' => $userId,
+            'type' => $validated['type'],
+            'title' => $validated['title'],
+            'inspection_date' => $validated['inspection_date'] ?? now()->toDateString(),
+            'status' => 'completed',
+            'notes' => $validated['notes'] ?? null,
+        ]);
+
+        foreach ($validated['checks'] as $check) {
+            InspectionCheck::create([
+                'inspection_id' => $inspection->id,
+                'check_name' => $check['check_name'],
+                'required_value' => $check['required_value'] ?? null,
+                'actual_value' => $check['actual_value'] ?? null,
+                'unit' => $check['unit'] ?? null,
+                'status' => $check['status'],
+                'severity' => $check['status'] === 'fail'
+                    ? ($check['severity'] ?? null)
+                    : null,
+                'comment' => $check['comment'] ?? null,
+            ]);
+        }
+
+        DB::commit();
+
+        $inspection->load('checks');
+
+        return response()->json([
+            'message' => 'Incident reported successfully',
+            'incident' => $inspection,
+        ], 201);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'message' => 'Failed to report incident',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
+public function getResources($project)
+{
+    $resources = Resource::where('project_id', $project)
+        ->orderBy('name')
+        ->get([
+            'id',
+            'name',
+            'type',
+            'quantity',
+            'unit',
+            'status',
+            'supplier'
+        ]);
+
+    return response()->json([
+        'resources' => $resources
+    ]);
+}
+public function createResource(Request $request, $project)
+{
+    $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'type' => 'required|in:material,equipment,tool,vehicle',
+        'quantity' => 'required|integer|min:0',
+        'unit' => 'required|in:unit,piece,kg,tonne,litre,m3,m2,m,mm,bag,box,pallet,roll,sheet,bar,bundle,load,hour,day', 
+       'status' => 'required|in:available,in_use,damaged,out_of_stock',
+        'supplier' => 'nullable|string|max:255',
+    ]);
+
+    $resource = Resource::create([
+        'project_id' => $project,
+        'name' => $validated['name'],
+        'type' => $validated['type'],
+        'quantity' => $validated['quantity'],
+        'unit_cost' => $validated['unit'] ?? 0,
+        'status' => $validated['status'],
+        'supplier' => $validated['supplier'] ?? null,
+    ]);
+
+    return response()->json([
+        'message' => 'Resource added successfully',
+        'resource' => $resource
+    ], 201);
+}
+
+ 
+
+} <?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Task;
+use App\Models\User;
+use Illuminate\Http\Request;
+
+class SiteManagerTasksController extends Controller
+{
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET ALL WORKERS
+    |--------------------------------------------------------------------------
+    */
+public function index()
+{
+    $tasks = Task::with(['assignedUser'])
+        ->where('project_id', 3)
+        ->latest()
+        ->get();
+
+    return response()->json($tasks);
+}
+    public function workers()
+    {
+        $workers = User::where('role', 'worker')
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json($workers);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE TASK FOR WORKER
+    |--------------------------------------------------------------------------
+    */
+
+public function createWorkerTask(Request $request)
+{
+    \Log::info("TASK REQUEST:", $request->all());
+
+    $task = Task::create([
+        'project_id' => 3, // 🔥 HARD CODED FIX
+        'parent_task_id' => $request->parent_task_id,
+        'assigned_to' => $request->assigned_to,
+
+        'title' => $request->title,
+        'description' => $request->description,
+
+        'priority' => $request->priority,
+        'status' => 'pending',
+        'progress' => 0,
+
+        'estimated_hours' => $request->estimated_hours,
+        'begin_date' => $request->begin_date,
+        'due_date' => $request->due_date,
+    ]);
+
+    \Log::info("TASK CREATED:", $task->toArray());
+
+    return response()->json([
+        'message' => 'Task created successfully',
+        'task' => $task
+    ], 201);
+}
+}<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\Task;
+use App\Models\Project;
+use App\Models\User;
+use App\Models\Media;
+use Carbon\Carbon;
+
+class TaskController extends Controller
+{
+    public function store(Request $request)
+    {
+        $request->validate([
+            'project_id' => 'required|exists:projects,id',
+            'assigned_to' => 'nullable|exists:users,id',
+            'title' => 'required|string',
+            'description' => 'nullable|string',
+            'priority' => 'required|in:low,medium,high,urgent',
+            'estimated_hours' => 'nullable|numeric',
+            'due_date' => 'nullable|date',
+            'begin_date' => 'nullable|date', // ✅ IMPORTANT
+        ]);
+
+        $task = Task::create([
+            'project_id' => $request->project_id,
+            'assigned_to' => $request->assigned_to,
+            'parent_task_id' => $request->parent_task_id,
+            'title' => $request->title,
+            'description' => $request->description,
+            'priority' => $request->priority,
+            'estimated_hours' => $request->estimated_hours,
+            'due_date' => $request->due_date,
+            'begin_date' => $request->begin_date, // ✅ IMPORTANT
+            'status' => 'pending',
+            'progress' => 0,
+        ]);
+
+        return response()->json([
+            'message' => 'Task created successfully',
+            'task' => $task
+        ], 201);
+    }
+
+    public function index()
+    {
+        return response()->json([
+            'projects' => Project::select('id', 'name')->get(),
+
+            'users' => User::select('id', 'name')
+                ->where('role', 'chef_chantier')
+                ->get(),
+
+        'tasks' => Task::select('id', 'title')
+                ->whereNull('parent_task_id')
+                ->get(),
+        ]);
+    }
+
+    public function getProjectTasks($projectId)
+    {
+        return Task::with(['assignedUser', 'media'])
+            ->where('project_id', $projectId)
+            ->get();
+    }
+
+    public function uploadTaskMedia(Request $request, $taskId)
+    {
+        $request->validate([
+            'file' => 'required|file'
+        ]);
+
+        $path = $request->file('file')->store('tasks', 'public');
+
+        $media = Media::create([
+            'task_id' => $taskId,
+            'project_id' => $request->project_id,
+            'uploaded_by' => auth()->id(),
+            'type' => 'document',
+            'url' => $path,
+        ]);
+
+        return response()->json($media);
+    }
+
+    public function timeline($projectId)
+    {
+        $tasks = Task::with('assignedUser')
+            ->where('project_id', $projectId)
+            ->whereNotNull('begin_date')
+            ->whereNotNull('due_date') // ✅ IMPORTANT FIX
+            ->orderBy('begin_date')
+            ->get();
+
+        if ($tasks->isEmpty()) {
+            return response()->json([]);
+        }
+
+        // ✅ safer project start
+        $projectStart = Carbon::parse($tasks->min('begin_date'));
+
+        $timelineTasks = $tasks->map(function ($task) use ($projectStart) {
+
+            if (!$task->begin_date) return null;
+
+            $begin = Carbon::parse($task->begin_date);
+
+            $startOffset = $projectStart->diffInDays($begin);
+
+            $duration = $task->due_date
+                ? max(1, $begin->diffInDays(Carbon::parse($task->due_date)))
+                : 1;
+
+            return [
+                'id' => $task->id,
+                'name' => $task->title,
+                'assigned_to_name' => $task->assignedUser?->name,
+                'status' => $task->status,
+                'progress' => $task->progress ?? 0,
+                'due_date' => $task->due_date,
+
+                'start' => $startOffset,
+                'duration' => $duration,
+
+                'color' => match ($task->status) {
+                    'completed' => 'bg-emerald-500',
+                    'in_progress' => 'bg-blue-500',
+                    'review' => 'bg-purple-500',
+                    'cancelled' => 'bg-red-500',
+                    default => 'bg-amber-500',
+                }
+            ];
+        })->filter(); // ✅ remove nulls
+
+        return response()->json($timelineTasks->values());
+    }
+}```php
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Attendance;
+use App\Models\ChatMessage;
+use App\Models\Notification;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+
+class WorkerActivityController extends Controller
+{
+    /*
+    |--------------------------------------------------------------------------
+    | Temporary Worker
+    |--------------------------------------------------------------------------
+    | Until login/authentication is implemented, worker ID 48
+    | represents the current worker.
+    |--------------------------------------------------------------------------
+    */
+
+    private $workerId = 48;
+
+    /*
+    |--------------------------------------------------------------------------
+    | CHAT - GET MESSAGES
+    |--------------------------------------------------------------------------
+    */
+
+    public function getMessages($projectId)
+    {
+        $userId = $this->workerId;
+
+        $messages = ChatMessage::with('sender:id,name')
+            ->where('project_id', $projectId)
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function ($message) use ($userId) {
+
+                return [
+                    'id' => $message->id,
+                    'sender_id' => $message->sender_id,
+
+                    'sender' => $message->sender_id == $userId
+                        ? 'You'
+                        : ($message->sender->name ?? 'User'),
+
+                    'message' => $message->message,
+
+                    'attachment_url' =>
+                        $message->attachment_url,
+
+                    'is_seen' =>
+                        $message->is_seen,
+
+                    'time' =>
+                        $message->created_at->format('h:i A'),
+
+                    'created_at' =>
+                        $message->created_at,
+                ];
+            });
+
+        return response()->json([
+            'messages' => $messages
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CHAT - SEND MESSAGE
+    |--------------------------------------------------------------------------
+    */
+
+    public function sendMessage(
+        Request $request,
+        $projectId
+    ) {
+        $request->validate([
+            'message' =>
+                'required|string|max:5000',
+        ]);
+
+        $userId = $this->workerId;
+
+        $message = ChatMessage::create([
+            'project_id' => $projectId,
+            'sender_id' => $userId,
+            'message' => $request->message,
+        ]);
+
+        return response()->json([
+            'message' => [
+                'id' => $message->id,
+
+                'sender_id' =>
+                    $message->sender_id,
+
+                'sender' => 'You',
+
+                'message' =>
+                    $message->message,
+
+                'time' =>
+                    $message->created_at->format('h:i A'),
+
+                'created_at' =>
+                    $message->created_at,
+            ]
+        ], 201);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE - GET TODAY
+    |--------------------------------------------------------------------------
+    */
+
+    public function getMyAttendance($projectId)
+    {
+        $userId = $this->workerId;
+
+        $attendance = Attendance::where(
+                'project_id',
+                $projectId
+            )
+            ->where(
+                'user_id',
+                $userId
+            )
+            ->whereDate(
+                'check_in',
+                Carbon::today()
+            )
+            ->latest('check_in')
+            ->first();
+
+        return response()->json([
+            'attendance' => $attendance
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE - CHECK IN
+    |--------------------------------------------------------------------------
+    */
+
+    public function checkIn(
+        Request $request,
+        $projectId
+    ) {
+        $userId = $this->workerId;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Check if already checked in today
+        |--------------------------------------------------------------------------
+        */
+
+        $existing = Attendance::where(
+                'project_id',
+                $projectId
+            )
+            ->where(
+                'user_id',
+                $userId
+            )
+            ->whereDate(
+                'check_in',
+                Carbon::today()
+            )
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'message' =>
+                    'You have already checked in today.',
+
+                'attendance' =>
+                    $existing
+            ], 422);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create attendance
+        |--------------------------------------------------------------------------
+        */
+
+        $attendance = Attendance::create([
+            'project_id' => $projectId,
+
+            'user_id' => $userId,
+
+            'check_in' => now(),
+
+            'status' => 'present',
+
+            'role_snapshot' => 'worker',
+        ]);
+
+        return response()->json([
+            'message' =>
+                'Checked in successfully.',
+
+            'attendance' =>
+                $attendance
+        ], 201);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE - CHECK OUT
+    |--------------------------------------------------------------------------
+    */
+
+    public function checkOut(
+        Request $request,
+        $projectId
+    ) {
+        $userId = $this->workerId;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Find today's open attendance
+        |--------------------------------------------------------------------------
+        */
+
+        $attendance = Attendance::where(
+                'project_id',
+                $projectId
+            )
+            ->where(
+                'user_id',
+                $userId
+            )
+            ->whereDate(
+                'check_in',
+                Carbon::today()
+            )
+            ->whereNull(
+                'check_out'
+            )
+            ->latest('check_in')
+            ->first();
+
+        if (!$attendance) {
+            return response()->json([
+                'message' =>
+                    'You have not checked in today or you already checked out.'
+            ], 422);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Check out
+        |--------------------------------------------------------------------------
+        */
+
+        $attendance->update([
+            'check_out' => now(),
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Calculate worked duration
+        |--------------------------------------------------------------------------
+        */
+
+        $checkIn = Carbon::parse(
+            $attendance->check_in
+        );
+
+        $checkOut = Carbon::parse(
+            $attendance->check_out
+        );
+
+        $totalMinutes =
+            $checkIn->diffInMinutes(
+                $checkOut
+            );
+
+        $hours =
+            intdiv(
+                $totalMinutes,
+                60
+            );
+
+        $minutes =
+            $totalMinutes % 60;
+
+        $duration = '';
+
+        if ($hours > 0) {
+            $duration .=
+                $hours . 'h ';
+        }
+
+        if ($minutes > 0) {
+            $duration .=
+                $minutes . 'min';
+        }
+
+        if ($duration === '') {
+            $duration = 'Less than 1 min';
+        }
+
+        return response()->json([
+            'message' =>
+                'Work completed successfully.',
+
+            'attendance' =>
+                $attendance,
+
+            'work_duration' =>
+                trim($duration)
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | NOTIFICATIONS
+    |--------------------------------------------------------------------------
+    */
+
+    public function getNotifications($projectId)
+    {
+        $userId = $this->workerId;
+
+        $notifications = Notification::where(
+                'user_id',
+                $userId
+            )
+            ->where(function ($query) use ($projectId) {
+
+                $query
+                    ->where(
+                        'project_id',
+                        $projectId
+                    )
+                    ->orWhereNull(
+                        'project_id'
+                    );
+
+            })
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'notifications' =>
+                $notifications
+        ]);
+    }
+}
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+
+use App\Models\ProjectUser;
+use App\Models\Task;
+use App\Models\TaskUpdate;
+use App\Models\User;
+use App\Models\Inspection;
+use App\Models\InspectionCheck;
+use App\Models\Media;
+
+class WorkerController extends Controller
+{
+    /*
+    |--------------------------------------------------------------------------
+    | Temporary worker ID
+    |--------------------------------------------------------------------------
+    | Later replace this with auth()->id()
+    |--------------------------------------------------------------------------
+    */
+    private function workerId()
+    {
+        return 48;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Get worker projects
+    |--------------------------------------------------------------------------
+    */
+    public function getProjects()
+    {
+        $userId = $this->workerId();
+
+        $projects = ProjectUser::where('user_id', $userId)
+            ->where('role_on_proj', 'worker')
+            ->with('project')
+            ->get();
+
+        return response()->json([
+            'projects' => $projects
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Worker Home
+    |--------------------------------------------------------------------------
+    */
+    public function home($projectId)
+    {
+        $userId = $this->workerId();
+
+        $projectUser = ProjectUser::where('project_id', $projectId)
+            ->where('user_id', $userId)
+            ->where('role_on_proj', 'worker')
+            ->with('project')
+            ->first();
+
+        if (!$projectUser) {
+            return response()->json([
+                'message' => 'Worker is not assigned to this project.'
+            ], 403);
+        }
+
+        $user = User::find($userId);
+
+        $tasks = Task::where('project_id', $projectId)
+            ->where('assigned_to', $userId)
+            ->orderBy('due_date')
+            ->get();
+
+        $activeTasks = $tasks
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->count();
+
+        $inProgress = $tasks
+            ->where('status', 'in_progress')
+            ->count();
+
+        $completed = $tasks
+            ->where('status', 'completed')
+            ->count();
+
+        $averageProgress = $tasks->count()
+            ? round($tasks->avg('progress'))
+            : 0;
+
+        $taskIds = $tasks->pluck('id');
+
+        $activity = TaskUpdate::whereIn('task_id', $taskIds)
+            ->latest()
+            ->take(10)
+            ->get();
+
+        return response()->json([
+            'project_id' => (int) $projectId,
+
+            'project' => [
+                'id' => $projectUser->project?->id,
+                'name' => $projectUser->project?->name,
+            ],
+
+            'worker' => [
+                'id' => $user?->id,
+                'name' => $user?->name ?? 'Worker',
+                'profile_image' => $user?->profile_image ?? null,
+            ],
+
+            'stats' => [
+                'active_tasks' => $activeTasks,
+                'in_progress' => $inProgress,
+                'completed' => $completed,
+                'progress' => $averageProgress,
+            ],
+
+            'tasks' => $tasks,
+
+            'activity' => $activity,
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Worker Report Something
+    |--------------------------------------------------------------------------
+    */
+    public function reportIssue(Request $request, $projectId)
+    {
+        $workerId = $this->workerId();
+
+        $request->validate([
+            'task_id' => 'nullable|exists:tasks,id',
+            'title' => 'required|string|max:255',
+            'type' => 'required|in:quality,safety',
+            'inspection_date' => 'required|date',
+            'notes' => 'nullable|string',
+
+            'checks' => 'required|array|min:1',
+
+            'checks.*.check_name'
+                => 'required|string|max:255',
+
+            'checks.*.required_value'
+                => 'nullable|string|max:255',
+
+            'checks.*.actual_value'
+                => 'nullable|string|max:255',
+
+            'checks.*.unit'
+                => 'nullable|string|max:50',
+
+            'checks.*.status'
+                => 'required|in:pending,ok,fail',
+
+            'checks.*.severity'
+                => 'nullable|in:low,medium,high',
+
+            'checks.*.comment'
+                => 'nullable|string',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Make sure worker belongs to project
+        |--------------------------------------------------------------------------
+        */
+        $workerAssigned = ProjectUser::where('project_id', $projectId)
+            ->where('user_id', $workerId)
+            ->where('role_on_proj', 'worker')
+            ->exists();
+
+        if (!$workerAssigned) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Worker is not assigned to this project.'
+            ], 403);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | If task is provided, make sure it belongs to this project
+        |--------------------------------------------------------------------------
+        */
+        if ($request->task_id) {
+            $taskBelongsToProject = Task::where('id', $request->task_id)
+                ->where('project_id', $projectId)
+                ->where('assigned_to', $workerId)
+                ->exists();
+
+            if (!$taskBelongsToProject) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Selected task does not belong to this worker/project.'
+                ], 422);
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create inspection
+        |--------------------------------------------------------------------------
+        */
+        $inspection = Inspection::create([
+            'project_id' => $projectId,
+            'task_id' => $request->task_id,
+            'inspected_by' => $workerId,
+            'type' => $request->type,
+            'title' => $request->title,
+            'inspection_date' => $request->inspection_date,
+            'status' => 'draft',
+            'notes' => $request->notes,
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create inspection checks
+        |--------------------------------------------------------------------------
+        */
+        foreach ($request->checks as $check) {
+            InspectionCheck::create([
+                'inspection_id' => $inspection->id,
+                'check_name' => $check['check_name'],
+                'required_value' => $check['required_value'] ?? null,
+                'actual_value' => $check['actual_value'] ?? null,
+                'unit' => $check['unit'] ?? null,
+                'status' => $check['status'],
+                'severity' => $check['severity'] ?? null,
+                'comment' => $check['comment'] ?? null,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Report submitted successfully.',
+            'inspection' => $inspection->load('checks'),
+        ], 201);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mark Task Done
+    |--------------------------------------------------------------------------
+    |
+    | Updates:
+    | 1. tasks
+    | 2. task_updates
+    | 3. media (only when a photo is attached)
+    |
+    |--------------------------------------------------------------------------
+    */
+    public function markTaskDone(Request $request, $taskId)
+ {
+    $workerId = $this->workerId();
+
+    $request->validate([
+        'photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+    ]);
+
+    $task = Task::where('id', $taskId)
+        ->where('assigned_to', $workerId)
+        ->first();
+
+    if (!$task) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Task not found or not assigned to this worker.'
+        ], 404);
+    }
+
+    $task->update([
+        'progress' => 100,
+        'status' => 'completed',
+    ]);
+
+    $taskUpdate = TaskUpdate::create([
+        'task_id' => $task->id,
+        'updated_by' => $workerId,
+        'progress' => 100,
+        'note' => 'Task marked as completed by the worker.',
+    ]);
+
+    $media = null;
+
+    if ($request->hasFile('photo')) {
+        $path = $request->file('photo')->store(
+            'task-proofs',
+            'public'
+        );
+
+        $media = Media::create([
+            'project_id' => $task->project_id,
+            'task_id' => $task->id,
+            'uploaded_by' => $workerId,
+            'type' => 'photo',
+            'url' => $path,
+            'related_type' => 'task',
+            'related_id' => $task->id,
+        ]);
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Task marked as completed successfully.',
+        'task' => $task,
+        'task_update' => $taskUpdate,
+        'media' => $media,
+    ]);
+}}
+

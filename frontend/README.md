@@ -1,70 +1,557 @@
-# Getting Started with Create React App
+# BTPControl — Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Frontend application for **BTPControl**, a construction project management platform built with **React**.
 
-## Available Scripts
+The application provides dedicated interfaces for engineers, site managers, and workers while using one centralized authentication system.
 
-In the project directory, you can run:
+---
 
-### `npm start`
+## 📌 About BTPControl
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+BTPControl provides a unified interface for construction project management.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+The frontend communicates with the Laravel backend through REST APIs.
 
-### `npm test`
+```text
+React Frontend
+      ↓
+    Axios
+      ↓
+Laravel REST API
+      ↓
+    MySQL
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## 🛠️ Technologies
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+| Technology      | Purpose              |
+| --------------- | -------------------- |
+| React           | Frontend framework   |
+| JavaScript      | Programming language |
+| React Router    | Application routing  |
+| Axios           | API communication    |
+| Tailwind CSS    | UI styling           |
+| Lucide React    | Icons                |
+| Laravel Sanctum | Authentication       |
+| Git             | Version control      |
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+---
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## 👥 Role-Based Interfaces
 
-### `npm run eject`
+BTPControl uses one React application with different interfaces depending on the authenticated user's role.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### Engineer
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Main interface:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```text
+/engineer
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Includes:
 
-## Learn More
+* Project dashboard
+* Execution monitoring
+* Planning
+* Project editing
+* Project follow-up
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+---
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Site Manager
 
-### Code Splitting
+Main interface:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+```text
+/
+```
 
-### Analyzing the Bundle Size
+Includes:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+* Dashboard
+* Workers
+* Tasks
+* Resources
+* Incidents
+* Project selection
 
-### Making a Progressive Web App
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+### Worker
 
-### Advanced Configuration
+Main interface:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+```text
+/worker
+```
 
-### Deployment
+Includes:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+* Home
+* Tasks
+* Activity
+* Profile
+* Attendance
+* Worker communication
 
-### `npm run build` fails to minify
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## 🔐 Authentication
+
+The application uses one centralized login page:
+
+```text
+/login
+```
+
+and one registration page:
+
+```text
+/register
+```
+
+Authentication flow:
+
+```text
+              Login
+                ↓
+        Laravel /api/auth/login
+                ↓
+          User + Token
+                ↓
+          Read user.role
+                ↓
+       ┌────────┼────────┐
+       ↓        ↓        ↓
+   Engineer    Chef     Worker
+       ↓        ↓        ↓
+ /engineer      /       /worker
+```
+
+The token is stored locally:
+
+```javascript
+localStorage.setItem("token", token);
+```
+
+The authenticated user is stored as:
+
+```javascript
+localStorage.setItem(
+    "user",
+    JSON.stringify(user)
+);
+```
+
+---
+
+## 🔑 Registration
+
+The registration page sends:
+
+```http
+POST /api/auth/register
+```
+
+with:
+
+```json
+{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+212600000000",
+    "password": "password123",
+    "password_confirmation": "password123",
+    "role": "worker"
+}
+```
+
+After registration, the user is automatically authenticated and redirected according to their role.
+
+---
+
+## 🧭 Routing
+
+React Router is used for role-specific navigation.
+
+### Authentication
+
+```text
+/login
+/register
+```
+
+### Engineer
+
+```text
+/engineer
+/engineer/ProjectDashboard
+/engineer/execution
+/engineer/planning
+/engineer/projects/:projectId/edit
+```
+
+### Site Manager
+
+```text
+/
+/workers
+/workers/:projectId
+/tasks
+/tasks/:projectId
+/resources
+/resources/:projectId
+/incidents
+/incidents/:projectId
+```
+
+### Worker
+
+```text
+/worker
+/worker/tasks
+/worker/activity
+/worker/profile
+```
+
+---
+
+## 🧩 Frontend Structure
+
+```text
+src/
+│
+├── App.jsx
+├── Login.jsx
+├── Register.jsx
+│
+├── Components/
+│   └── Shared Components
+│
+├── Ingenieur/
+│   ├── ProjectDashbored.jsx
+│   ├── ExecutionMonitoring.jsx
+│   ├── PlanningGantt.jsx
+│   └── EditProject.jsx
+│
+├── chef_chantier/
+│   ├── Dashboard.jsx
+│   ├── Sidebar.jsx
+│   ├── Workers.jsx
+│   ├── Tasks.jsx
+│   ├── Resources.jsx
+│   └── Incidents.jsx
+│
+└── travailleur/
+    ├── WorkerHome.jsx
+    ├── WorkerTasks.jsx
+    ├── WorkerActivity.jsx
+    └── WorkerProfile.jsx
+```
+
+---
+
+## 📱 Worker Interface
+
+The worker interface is designed as a mobile-style experience.
+
+```text
+        Worker
+          │
+ ┌────────┼────────┐
+ │        │        │
+Home    Tasks   Activity
+ │
+Profile
+```
+
+The interface uses a compact mobile layout suitable for workers accessing the system from construction sites.
+
+---
+
+## 🎨 UI Design
+
+BTPControl follows a modern construction-management style inspired by professional project-management applications.
+
+Design principles include:
+
+* Clean dashboards
+* Responsive interfaces
+* Clear status indicators
+* Construction-focused terminology
+* Simple navigation
+* Consistent spacing
+* Reusable components
+
+Primary visual direction:
+
+```text
+Slate / Dark Blue
+        +
+      Yellow
+        +
+      White
+        +
+      Light Gray
+```
+
+---
+
+## 🔄 API Communication
+
+Axios is used to communicate with Laravel.
+
+Example:
+
+```javascript
+axios.get(
+    "http://127.0.0.1:8000/api/projects",
+    {
+        headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+        },
+    }
+);
+```
+
+The Bearer token identifies the authenticated user.
+
+---
+
+## 🔒 Protected Access
+
+The application checks the authenticated user before displaying role-specific interfaces.
+
+Example:
+
+```javascript
+if (user.role === "worker") {
+    // Worker interface
+}
+
+if (user.role === "engineer") {
+    // Engineer interface
+}
+
+if (user.role === "chef_chantier") {
+    // Site Manager interface
+}
+```
+
+Invalid roles are redirected to the login page.
+
+---
+
+## 🚪 Logout
+
+When a user logs out:
+
+```text
+Logout
+  ↓
+POST /api/auth/logout
+  ↓
+Token removed
+  ↓
+User removed from localStorage
+  ↓
+Redirect /login
+```
+
+Example:
+
+```javascript
+localStorage.removeItem("token");
+localStorage.removeItem("user");
+
+window.location.href = "/login";
+```
+
+---
+
+## ⚙️ Installation
+
+Clone the repository:
+
+```bash
+git clone YOUR_FRONTEND_REPOSITORY_URL
+```
+
+Move into the project:
+
+```bash
+cd frontend
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start the development server:
+
+```bash
+npm start
+```
+
+The frontend runs on:
+
+```text
+http://localhost:3000
+```
+
+---
+
+## 🔗 Backend Connection
+
+The React application communicates with:
+
+```text
+http://127.0.0.1:8000/api
+```
+
+The Laravel backend must be running before using API-dependent features.
+
+---
+
+## 🌐 Application Architecture
+
+```text
+                 BTPControl
+                     │
+              React Application
+                     │
+              React Router
+                     │
+          ┌──────────┼──────────┐
+          │          │          │
+       Engineer   Site Manager  Worker
+          │          │          │
+          └──────────┼──────────┘
+                     │
+                   Axios
+                     ↓
+              Laravel API
+                     ↓
+                   MySQL
+```
+
+---
+
+## 📦 Main Frontend Features
+
+### Engineer
+
+```text
+Project Dashboard
+Planning
+Execution Monitoring
+Project Management
+```
+
+### Site Manager
+
+```text
+Dashboard
+Workers
+Tasks
+Resources
+Incidents
+Attendance
+```
+
+### Worker
+
+```text
+Home
+Assigned Tasks
+Task Progress
+Attendance
+Activity
+Communication
+```
+
+---
+
+## 🧪 Development
+
+Start React:
+
+```bash
+npm start
+```
+
+Install a new package:
+
+```bash
+npm install package-name
+```
+
+Build for production:
+
+```bash
+npm run build
+```
+
+---
+
+## 🚀 Production Build
+
+Create the production build:
+
+```bash
+npm run build
+```
+
+The generated files are stored in:
+
+```text
+build/
+```
+
+The project can then be deployed to a suitable web server or hosting platform.
+
+---
+
+## 🔗 Backend + Frontend Ports
+
+BTPControl uses one React frontend server and one Laravel backend server:
+
+```text
+React   → http://localhost:3000
+Laravel → http://127.0.0.1:8000
+```
+
+The different user roles are **not separate React applications**.
+
+They are different interfaces inside the same React application.
+
+---
+
+## 📌 Why One Frontend Application?
+
+Using one React application provides:
+
+* Centralized authentication
+* Shared components
+* Shared routing
+* Shared API configuration
+* Easier maintenance
+* Consistent UI
+* Role-based access control
+
+Instead of creating three separate frontend applications, BTPControl dynamically displays the correct interface according to the authenticated user's role.
+
+---
+
+## 👩‍💻 Developer
+
+**Meryam Ahamyan**
+
+Full Stack Web Development
+Morocco

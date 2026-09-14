@@ -11,6 +11,7 @@ import {
   Building2,
   Check,
   X,
+  LogOut,
 } from "lucide-react";
 
 export default function WorkerHome({
@@ -22,6 +23,7 @@ export default function WorkerHome({
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const projectId = currentProject?.project_id;
 
@@ -34,13 +36,18 @@ export default function WorkerHome({
     setLoading(true);
 
     axios
-      .get(`http://127.0.0.1:8000/api/Worker/projects/${projectId}/home`)
+      .get(
+        `http://127.0.0.1:8000/api/Worker/projects/${projectId}/home`
+      )
       .then((response) => {
         console.log("Worker Home:", response.data);
         setData(response.data);
       })
       .catch((error) => {
-        console.error("Error loading worker home:", error);
+        console.error(
+          "Error loading worker home:",
+          error
+        );
         setData(null);
       })
       .finally(() => {
@@ -48,11 +55,20 @@ export default function WorkerHome({
       });
   }, [projectId]);
 
-  const workerName = data?.worker?.name || "Worker";
-  const activeTasks = data?.stats?.active_tasks ?? 0;
-  const inProgress = data?.stats?.in_progress ?? 0;
-  const completed = data?.stats?.completed ?? 0;
-  const progress = data?.stats?.progress ?? 0;
+  const workerName =
+    data?.worker?.name || "Worker";
+
+  const activeTasks =
+    data?.stats?.active_tasks ?? 0;
+
+  const inProgress =
+    data?.stats?.in_progress ?? 0;
+
+  const completed =
+    data?.stats?.completed ?? 0;
+
+  const progress =
+    data?.stats?.progress ?? 0;
 
   const projectName =
     data?.project?.name ||
@@ -62,6 +78,43 @@ export default function WorkerHome({
   const handleProjectSelect = (project) => {
     setCurrentProject(project);
     setMenuOpen(false);
+  };
+
+  // LOGOUT
+  const handleLogout = async () => {
+    if (loggingOut) {
+      return;
+    }
+
+    setLoggingOut(true);
+
+    const token =
+      localStorage.getItem("token");
+
+    try {
+      if (token) {
+        await axios.post(
+          "http://127.0.0.1:8000/api/auth/logout",
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Logout error:",
+        error
+      );
+    } finally {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+
+      window.location.href = "/login";
+    }
   };
 
   return (
@@ -331,7 +384,10 @@ export default function WorkerHome({
                   <div
                     className="h-full bg-emerald-600 rounded-full transition-all duration-500"
                     style={{
-                      width: `${Math.min(progress, 100)}%`,
+                      width: `${Math.min(
+                        progress,
+                        100
+                      )}%`,
                     }}
                   />
 
@@ -346,7 +402,9 @@ export default function WorkerHome({
               <div className="grid grid-cols-2 gap-3 mt-4">
 
                 <button
-                  onClick={() => onNavigate("work")}
+                  onClick={() =>
+                    onNavigate("work")
+                  }
                   className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-2xl py-3 shadow-md font-bold text-xs transition"
                 >
                   <ClipboardList size={15} />
@@ -354,7 +412,9 @@ export default function WorkerHome({
                 </button>
 
                 <button
-                  onClick={() => onNavigate("activity")}
+                  onClick={() =>
+                    onNavigate("activity")
+                  }
                   className="flex items-center justify-center gap-2 bg-white hover:bg-emerald-50 active:scale-[0.98] text-gray-700 rounded-2xl py-3 shadow-sm border border-gray-100 font-bold text-xs transition"
                 >
                   <TrendingUp
@@ -402,7 +462,9 @@ export default function WorkerHome({
                 </div>
 
                 <button
-                  onClick={() => setMenuOpen(false)}
+                  onClick={() =>
+                    setMenuOpen(false)
+                  }
                   className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-emerald-50 transition"
                 >
                   <X
@@ -421,77 +483,92 @@ export default function WorkerHome({
 
                 <div className="space-y-2">
 
-                  {projects.map((projectUser) => {
+                  {projects.map(
+                    (projectUser) => {
 
-                    const isSelected =
-                      Number(currentProject?.project_id) ===
-                      Number(projectUser?.project_id);
+                      const isSelected =
+                        Number(
+                          currentProject?.project_id
+                        ) ===
+                        Number(
+                          projectUser?.project_id
+                        );
 
-                    return (
-                      <button
-                        key={projectUser.id}
-                        onClick={() =>
-                          handleProjectSelect(projectUser)
-                        }
-                        className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition ${
-                          isSelected
-                            ? "bg-emerald-50 border border-emerald-100"
-                            : "hover:bg-gray-50 border border-transparent"
-                        }`}
-                      >
-
-                        {/* PROJECT ICON */}
-                        <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      return (
+                        <button
+                          key={
+                            projectUser.id
+                          }
+                          onClick={() =>
+                            handleProjectSelect(
+                              projectUser
+                            )
+                          }
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition ${
                             isSelected
-                              ? "bg-emerald-100"
-                              : "bg-gray-100"
+                              ? "bg-emerald-50 border border-emerald-100"
+                              : "hover:bg-gray-50 border border-transparent"
                           }`}
                         >
-                          <Building2
-                            size={18}
-                            className={
-                              isSelected
-                                ? "text-emerald-600"
-                                : "text-gray-500"
-                            }
-                          />
-                        </div>
 
-                        {/* PROJECT INFO */}
-                        <div className="flex-1 min-w-0">
-
-                          <p
-                            className={`text-sm font-semibold truncate ${
+                          {/* PROJECT ICON */}
+                          <div
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                               isSelected
-                                ? "text-emerald-700"
-                                : "text-gray-800"
+                                ? "bg-emerald-100"
+                                : "bg-gray-100"
                             }`}
                           >
-                            {projectUser?.project?.name ||
-                              "Unnamed Project"}
-                          </p>
-
-                          <p className="text-[10px] text-gray-400 mt-0.5">
-                            Project #{projectUser?.project_id}
-                          </p>
-
-                        </div>
-
-                        {/* SELECTED */}
-                        {isSelected && (
-                          <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
-                            <Check
-                              size={14}
-                              className="text-emerald-600"
-                              strokeWidth={3}
+                            <Building2
+                              size={18}
+                              className={
+                                isSelected
+                                  ? "text-emerald-600"
+                                  : "text-gray-500"
+                              }
                             />
                           </div>
-                        )}
 
-                      </button>
-                    );
-                  })}
+                          {/* PROJECT INFO */}
+                          <div className="flex-1 min-w-0">
+
+                            <p
+                              className={`text-sm font-semibold truncate ${
+                                isSelected
+                                  ? "text-emerald-700"
+                                  : "text-gray-800"
+                              }`}
+                            >
+                              {projectUser
+                                ?.project
+                                ?.name ||
+                                "Unnamed Project"}
+                            </p>
+
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              Project #
+                              {
+                                projectUser?.project_id
+                              }
+                            </p>
+
+                          </div>
+
+                          {/* SELECTED */}
+                          {isSelected && (
+                            <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+                              <Check
+                                size={14}
+                                className="text-emerald-600"
+                                strokeWidth={3}
+                              />
+                            </div>
+                          )}
+
+                        </button>
+                      );
+                    }
+                  )}
 
                 </div>
 
@@ -522,7 +599,30 @@ export default function WorkerHome({
             {/* FOOTER */}
             <div className="p-4 border-t border-gray-100">
 
-              <p className="text-[10px] text-gray-400 text-center">
+              {/* LOGOUT BUTTON */}
+              <button
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className={`
+                  w-full flex items-center justify-center gap-2
+                  py-3 rounded-xl
+                  text-xs font-bold
+                  transition
+                  ${
+                    loggingOut
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "bg-red-50 text-red-600 hover:bg-red-100"
+                  }
+                `}
+              >
+                <LogOut size={15} />
+
+                {loggingOut
+                  ? "Logging out..."
+                  : "Logout"}
+              </button>
+
+              <p className="text-[10px] text-gray-400 text-center mt-3">
                 Select a project to view your tasks and activity.
               </p>
 

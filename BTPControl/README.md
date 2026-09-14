@@ -1,59 +1,570 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# BTPControl — Backend
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Backend API for **BTPControl**, a construction project management platform designed for engineers, site managers, and workers.
 
-## About Laravel
+Built with **Laravel 12**, **PHP**, **MySQL**, and **Laravel Sanctum**.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 📌 About BTPControl
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+BTPControl centralizes construction-site management in one platform.
 
-## Learning Laravel
+The backend provides APIs for:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+* Project management
+* Task and planning management
+* Worker management
+* Attendance tracking
+* Construction resources and materials
+* Inspections and incidents
+* Reports
+* Project media and photos
+* Worker activity and communication
+* Authentication and role-based access
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-## Laravel Sponsors
+## 🛠️ Technologies
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+| Technology            | Purpose                        |
+| --------------------- | ------------------------------ |
+| Laravel 12            | Backend framework              |
+| PHP 8.2+              | Programming language           |
+| MySQL                 | Database                       |
+| Laravel Sanctum       | API authentication             |
+| Eloquent ORM          | Database interaction           |
+| REST API              | Frontend/backend communication |
+| Git / GitHub / GitLab | Version control                |
 
-### Premium Partners
+---
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## 👥 User Roles
 
-## Contributing
+BTPControl uses role-based access control.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### Engineer
 
-## Code of Conduct
+Responsible for:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+* Projects
+* Planning
+* Execution monitoring
+* Inspections
+* Validation
+* Project follow-up
 
-## Security Vulnerabilities
+### Site Manager
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Responsible for:
 
-## License
+* Workers
+* Tasks
+* Resources
+* Incidents
+* Attendance
+* Site monitoring
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Worker
+
+Responsible for:
+
+* Assigned tasks
+* Task progress
+* Attendance
+* Reports
+* Site activity
+* Communication
+
+---
+
+## 🔐 Authentication
+
+BTPControl uses **Laravel Sanctum** for API authentication.
+
+Authentication flow:
+
+```text
+React
+  ↓
+POST /api/auth/login
+  ↓
+Laravel verifies credentials
+  ↓
+Sanctum token generated
+  ↓
+Token returned to React
+  ↓
+React sends Bearer token
+  ↓
+Laravel authenticates the user
+```
+
+Protected requests use:
+
+```http
+Authorization: Bearer TOKEN
+Accept: application/json
+```
+
+The authenticated user is retrieved with:
+
+```php
+$request->user();
+```
+
+The application uses the authenticated user's ID instead of hard-coded user IDs.
+
+---
+
+## 🔑 Registration
+
+Users can create an account through:
+
+```http
+POST /api/auth/register
+```
+
+Example request:
+
+```json
+{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+212600000000",
+    "password": "password123",
+    "password_confirmation": "password123",
+    "role": "worker"
+}
+```
+
+Valid roles:
+
+```text
+engineer
+chef_chantier
+worker
+```
+
+---
+
+## 🚪 Login
+
+```http
+POST /api/auth/login
+```
+
+Example:
+
+```json
+{
+    "email": "john@example.com",
+    "password": "password123"
+}
+```
+
+Successful authentication returns:
+
+```json
+{
+    "message": "Login successful.",
+    "user": {
+        "id": 1,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "phone": "+212600000000",
+        "role": "worker"
+    },
+    "token": "SANCTUM_TOKEN",
+    "token_type": "Bearer"
+}
+```
+
+---
+
+## 👤 Current User
+
+Authenticated user:
+
+```http
+GET /api/auth/me
+```
+
+The API returns the currently authenticated user.
+
+---
+
+## 🚪 Logout
+
+```http
+POST /api/auth/logout
+```
+
+The current Sanctum token is revoked.
+
+---
+
+## 🗂️ Backend Structure
+
+Main Laravel structure:
+
+```text
+app/
+├── Http/
+│   └── Controllers/
+│       ├── Auth/
+│       ├── Engineer/
+│       ├── SiteManager/
+│       └── Worker/
+│
+├── Models/
+│
+database/
+├── migrations/
+├── seeders/
+└── factories/
+│
+routes/
+├── api.php
+└── web.php
+│
+bootstrap/
+└── app.php
+```
+
+---
+
+## 🧩 Architecture
+
+The backend follows a REST API architecture:
+
+```text
+React Frontend
+      ↓
+     HTTP
+      ↓
+Laravel API Routes
+      ↓
+Controllers
+      ↓
+Eloquent Models
+      ↓
+MySQL Database
+```
+
+---
+
+## 🗄️ Database
+
+Main entities include:
+
+```text
+users
+projects
+project_users
+tasks
+attendances
+resources
+inspections
+inspection_checks
+reports
+media
+notifications
+```
+
+### Important relationship
+
+A user can participate in multiple projects through:
+
+```text
+project_users
+```
+
+This allows a project to contain multiple users while storing their project-specific role.
+
+Example:
+
+```text
+User
+ ↓
+project_users
+ ↓
+Project
+```
+
+---
+
+## 📋 Tasks
+
+Tasks contain information such as:
+
+```text
+title
+description
+project_id
+assigned_to
+parent_task_id
+status
+priority
+progress
+due_date
+```
+
+Task statuses include:
+
+```text
+pending
+in_progress
+review
+completed
+cancelled
+```
+
+This supports task assignment and progress monitoring across the construction project.
+
+---
+
+## 👷 Worker Management
+
+Workers are associated with projects through `project_users`.
+
+The backend can retrieve:
+
+* Worker information
+* Assigned project
+* Attendance
+* Assigned tasks
+* Worker activity
+
+---
+
+## 🧱 Resources
+
+Resources are associated with projects.
+
+Types include:
+
+```text
+material
+equipment
+tool
+vehicle
+```
+
+Example fields:
+
+```text
+name
+type
+quantity
+unit
+status
+supplier
+project_id
+```
+
+Resource status can be:
+
+```text
+available
+in_use
+damaged
+out_of_stock
+```
+
+---
+
+## 🔍 Inspections & Incidents
+
+Inspections contain inspection checks.
+
+Example:
+
+```text
+Inspection
+   ↓
+Inspection Checks
+   ↓
+OK / FAIL / PENDING
+```
+
+Failed inspection checks can be used to identify construction incidents or non-conformities.
+
+---
+
+## 📸 Media
+
+The backend supports project/site media such as photos.
+
+Media can be associated with:
+
+```text
+project
+user
+inspection
+```
+
+Depending on the context.
+
+---
+
+## 🛡️ API Security
+
+Protected application routes use:
+
+```php
+Route::middleware('auth:sanctum')->group(function () {
+    // protected routes
+});
+```
+
+This ensures that only authenticated users can access protected resources.
+
+The backend also validates:
+
+* Required fields
+* Email format
+* Password confirmation
+* Allowed roles
+* Resource ownership/relationships where applicable
+
+---
+
+## ⚙️ Installation
+
+Clone the repository:
+
+```bash
+git clone YOUR_BACKEND_REPOSITORY_URL
+```
+
+Move into the project:
+
+```bash
+cd backend
+```
+
+Install PHP dependencies:
+
+```bash
+composer install
+```
+
+Create the environment file:
+
+```bash
+cp .env.example .env
+```
+
+Generate the application key:
+
+```bash
+php artisan key:generate
+```
+
+Configure the database inside `.env`:
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3307
+DB_DATABASE=btpcontrol
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+Run migrations:
+
+```bash
+php artisan migrate
+```
+
+Start Laravel:
+
+```bash
+php artisan serve
+```
+
+Backend:
+
+```text
+http://127.0.0.1:8000
+```
+
+---
+
+## 🧹 Useful Commands
+
+Clear Laravel cache:
+
+```bash
+php artisan optimize:clear
+```
+
+List routes:
+
+```bash
+php artisan route:list
+```
+
+Run migrations:
+
+```bash
+php artisan migrate
+```
+
+Rollback migrations:
+
+```bash
+php artisan migrate:rollback
+```
+
+Run tests:
+
+```bash
+php artisan test
+```
+
+---
+
+## 🔌 API Base URL
+
+Development:
+
+```text
+http://127.0.0.1:8000/api
+```
+
+The React frontend communicates with this API using Axios.
+
+---
+
+## 🚀 Development Architecture
+
+```text
+                BTPControl
+                    │
+          ┌─────────┴─────────┐
+          │                   │
+     React Frontend       Laravel Backend
+      Port 3000              Port 8000
+          │                   │
+          └────── REST API ───┘
+                    │
+                  MySQL
+```
+
+---
+
+## 📌 Project Goal
+
+The goal of BTPControl is to provide a practical and centralized system for managing construction projects, improving communication between project participants, and monitoring site execution.
+
+---
+
+## 👩‍💻 Developer
+
+**Meryam Ahamyan**
+
+Full Stack Web Development
+Morocco
