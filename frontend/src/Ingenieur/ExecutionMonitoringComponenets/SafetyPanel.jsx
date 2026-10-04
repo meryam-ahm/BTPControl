@@ -19,10 +19,15 @@ export default function SafetyPanel({ projectId }) {
     if (!projectId) return;
 
     setLoading(true);
-
+    const authHeader = {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Accept: "application/json",
+      },
+    };
     axios
       .get(
-        `http://localhost:8000/api/projects/${projectId}/getsafety`
+        `http://localhost:8000/api/engineer/projects/${projectId}/getsafety`,authHeader
       )
       .then((res) => {
         setData(res.data || []);

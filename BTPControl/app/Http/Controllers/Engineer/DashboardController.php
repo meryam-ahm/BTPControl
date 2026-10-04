@@ -8,11 +8,14 @@ use App\Models\Project;
 use App\Models\ProjectUser;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
+    /**
+     * Dashboard statistics.
+     */
     public function stats(): JsonResponse
     {
         return response()->json([
@@ -20,25 +23,46 @@ class DashboardController extends Controller
                 'title' => 'Total Projects',
                 'value' => Project::count(),
             ],
+
             [
                 'title' => 'Active',
-                'value' => Project::where('status', 'active')->count(),
+                'value' => Project::where(
+                    'status',
+                    'active'
+                )->count(),
             ],
+
             [
                 'title' => 'On Hold',
-                'value' => Project::where('status', 'paused')->count(),
+                'value' => Project::where(
+                    'status',
+                    'paused'
+                )->count(),
             ],
+
             [
                 'title' => 'Delayed',
-                'value' => Project::whereNotIn('status', ['completed', 'cancelled'])
-                    ->whereNotNull('end_date')
-                    ->whereDate('end_date', '<', Carbon::today())
-                    ->count(),
+                'value' => Project::whereNotIn(
+                    'status',
+                    ['completed', 'cancelled']
+                )
+                ->whereNotNull('end_date')
+                ->whereDate(
+                    'end_date',
+                    '<',
+                    Carbon::today()
+                )
+                ->count(),
             ],
+
             [
                 'title' => 'Completed',
-                'value' => Project::where('status', 'completed')->count(),
+                'value' => Project::where(
+                    'status',
+                    'completed'
+                )->count(),
             ],
+
             [
                 'title' => 'Total Budget',
                 'value' => Project::sum('budget'),
@@ -46,25 +70,110 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function table(Request $request): JsonResponse
-    {
-        $projects = Project::with([
-            'users' => function ($query) {
-                $query->wherePivot('role_on_proj', 'chef_chantier');
-            }
-        ])
-        ->latest()
-        ->paginate($request->integer('per_page', 15));
+    /**
+     * Get projects with pagination.
+     *
+     * This endpoint is used by the main projects table.
+     */
+  public function table(Request $request): JsonResponse
+{
+    $query = Project::with([
+        'users' => function ($query) {
+            $query->wherePivot(
+                'role_on_proj',
+                'site_manager'
+            );
+        }
+    ]);
 
-        $data = $projects->getCollection()->map(function ($project) {
-            $chef = $project->users->first();
+    // Search
+    if ($request->filled('search')) {
+        $query->where(
+            'projects.name',
+            'like',
+            '%' . $request->search . '%'
+        );
+    }
+
+    // Status
+    if ($request->filled('status')) {
+        $query->where(
+            'projects.status',
+            $request->status
+        );
+    }
+
+    // Client
+    if ($request->filled('client_id')) {
+        $query->where(
+            'projects.client_id',
+            $request->client_id
+        );
+    }
+
+    // Project type
+    if ($request->filled('type')) {
+        $query->where(
+            'projects.type',
+            'like',
+            '%' . $request->type . '%'
+        );
+    }
+
+    // Start date
+    if ($request->filled('start_date')) {
+        $query->whereDate(
+            'projects.start_date',
+            '>=',
+            $request->start_date
+        );
+    }
+
+    // End date
+    if ($request->filled('end_date')) {
+        $query->whereDate(
+            'projects.end_date',
+            '<=',
+            $request->end_date
+        );
+    }
+
+    // Site Manager
+    if ($request->filled('chef_id')) {
+        $query->whereHas(
+            'users',
+            function ($q) use ($request) {
+                $q->where(
+                    'users.id',
+                    $request->chef_id
+                )->wherePivot(
+                    'role_on_proj',
+                    'site_manager'
+                );
+            }
+        );
+    }
+
+    // Pagination
+    $projects = $query
+        ->latest()
+        ->paginate(
+            $request->integer('per_page', 10)
+        );
+
+    $projects->getCollection()->transform(
+        function ($project) {
+            $manager = $project->users->first();
 
             return [
                 'id' => $project->id,
                 'name' => $project->name,
-                'type' => $project->type ?? 'Construction',
-                'chef' => $chef?->name,
-                'chef_id' => $chef?->id,
+                'type' => $project->type
+                    ? trim($project->type)
+                    : 'Construction',
+                'client_id' => $project->client_id,
+                'chef' => $manager?->name,
+                'chef_id' => $manager?->id,
                 'start_date' => $project->start_date,
                 'end_date' => $project->end_date,
                 'progress' => 0,
@@ -73,94 +182,75 @@ class DashboardController extends Controller
                 'issues' => 0,
                 'location' => $project->location,
             ];
-        });
-
-        return response()->json([
-            'data' => $data,
-            'current_page' => $projects->currentPage(),
-            'last_page' => $projects->lastPage(),
-            'per_page' => $projects->perPage(),
-            'total' => $projects->total(),
-        ]);
-    }
-
-    public function filterProjects(Request $request): JsonResponse
-    {
-        $query = Project::with([
-            'users' => function ($query) {
-                $query->wherePivot('role_on_proj', 'chef_chantier');
-            }
-        ]);
-
-        if ($request->filled('name')) {
-            $query->where('name', 'like', $request->name . '%');
         }
+    );
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
+    return response()->json([
+        'data' => $projects->items(),
+        'current_page' => $projects->currentPage(),
+        'last_page' => $projects->lastPage(),
+        'per_page' => $projects->perPage(),
+        'total' => $projects->total(),
+    ]);
+}
 
-        if ($request->filled('client_id')) {
-            $query->where('client_id', $request->client_id);
-        }
-
-        if ($request->filled('type')) {
-            $query->where('type', 'like', '%' . $request->type . '%');
-        }
-
-        if ($request->filled('start_date')) {
-            $query->whereDate('start_date', '>=', $request->start_date);
-        }
-
-        if ($request->filled('end_date')) {
-            $query->whereDate('end_date', '<=', $request->end_date);
-        }
-
-        if ($request->filled('chef_id')) {
-            $query->whereHas('users', function ($q) use ($request) {
-                $q->where('users.id', $request->chef_id)
-                    ->where('role_on_proj', 'chef_chantier');
-            });
-        }
-
-        return response()->json([
-            'data' => $query->latest()->get(),
-        ]);
-    }
-
+    
+    /**
+     * Search projects by name.
+     */
     public function searchProject(Request $request): JsonResponse
     {
         $request->validate([
             'name' => 'required|string|max:255',
         ]);
 
+        $projects = Project::where(
+            'name',
+            'like',
+            $request->name . '%'
+        )
+        ->latest()
+        ->get();
+
         return response()->json([
-            'data' => Project::where(
-                'name',
-                'like',
-                $request->name . '%'
-            )->get(),
+            'data' => $projects,
         ]);
     }
 
+    /**
+     * Get available filter data.
+     */
     public function filtersData(): JsonResponse
     {
         $types = Project::whereNotNull('type')
             ->pluck('type')
-            ->map(fn ($type) => trim($type))
+            ->map(function ($type) {
+                return trim($type);
+            })
             ->unique()
             ->values();
 
-        $chefs = User::whereHas('projects', function ($query) {
-            $query->where('role_on_proj', 'chef_chantier');
-        })
-        ->select('id', 'name')
+        $siteManagers = User::whereHas(
+            'projects',
+            function ($query) {
+                $query->where(
+                    'role_on_proj',
+                    'site_manager'
+                );
+            }
+        )
+        ->select(
+            'id',
+            'name'
+        )
         ->orderBy('name')
         ->get();
 
         return response()->json([
             'types' => $types,
-            'chefs' => $chefs,
+
+            'chefs' => $siteManagers,
+
             'statuses' => [
                 'planned',
                 'active',
@@ -171,6 +261,9 @@ class DashboardController extends Controller
         ]);
     }
 
+    /**
+     * Get all clients.
+     */
     public function clients(): JsonResponse
     {
         return response()->json(
@@ -178,29 +271,56 @@ class DashboardController extends Controller
         );
     }
 
-    public function siteManagers($projectId): JsonResponse
-    {
+    /**
+     * Get Site Managers assigned to a project.
+     */
+    public function siteManagers(
+        $projectId
+    ): JsonResponse {
+
         $managers = ProjectUser::with('user')
-            ->where('project_id', $projectId)
-            ->where('role_on_proj', 'chef_chantier')
+            ->where(
+                'project_id',
+                $projectId
+            )
+            ->where(
+                'role_on_proj',
+                'site_manager'
+            )
             ->get()
-            ->map(fn ($item) => [
-                'id' => $item->user->id,
-                'name' => $item->user->name,
-            ]);
+            ->map(function ($item) {
+
+                return [
+                    'id' => $item->user->id,
+
+                    'name' => $item->user->name,
+                ];
+            });
 
         return response()->json($managers);
     }
 
-    public function update(Request $request, Project $project): JsonResponse
-    {
+    /**
+     * Update a project.
+     */
+    public function update(
+        Request $request,
+        Project $project
+    ): JsonResponse {
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+
             'type' => 'nullable|string|max:255',
+
             'location' => 'nullable|string|max:255',
+
             'start_date' => 'nullable|date',
+
             'end_date' => 'nullable|date|after_or_equal:start_date',
+
             'budget' => 'nullable|numeric|min:0',
+
             'status' => 'required|in:planned,active,paused,completed,cancelled',
         ]);
 
@@ -208,26 +328,39 @@ class DashboardController extends Controller
 
         return response()->json([
             'success' => true,
+
             'message' => 'Project updated successfully.',
+
             'project' => $project->fresh(),
         ]);
     }
 
-    public function destroy(Project $project): JsonResponse
-    {
+    /**
+     * Delete a project.
+     */
+    public function destroy(
+        Project $project
+    ): JsonResponse {
+
         try {
+
             $project->users()->detach();
+
             $project->delete();
 
             return response()->json([
                 'success' => true,
+
                 'message' => 'Project deleted successfully.',
             ]);
+
         } catch (\Throwable $e) {
+
             report($e);
 
             return response()->json([
                 'success' => false,
+
                 'message' => 'Failed to delete project.',
             ], 500);
         }

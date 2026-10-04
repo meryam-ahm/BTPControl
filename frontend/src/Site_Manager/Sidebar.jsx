@@ -86,7 +86,7 @@ export default function Sidebar() {
     <div className="w-64 min-h-screen bg-[#0a192f] text-white p-5 flex flex-col">
 
       <h1 className="text-lg font-bold mb-8">
-        Chef de Chantier
+                   Site Manager
       </h1>
 
       <div className="space-y-1 flex-1">

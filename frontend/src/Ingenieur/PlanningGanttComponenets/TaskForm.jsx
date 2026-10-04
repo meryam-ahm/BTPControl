@@ -29,17 +29,48 @@ export default function TaskForm({ setShowTaskForm }) {
     begin_date: "",
     due_date: ""
   });
-
+  const token = localStorage.getItem('token')
+  const authorization = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json'
+    }
+  }
   useEffect(() => {
+
     axios
-      .get("http://127.0.0.1:8000/api/engineer/TaskController/task-form-data")
+      .get("http://127.0.0.1:8000/api/engineer/TaskController/task-form-data", authorization)
       .then((res) => {
         setProjects(res.data.projects || []);
         setUsers(res.data.users || []);
-        setTasks(res.data.tasks || []);
       })
       .catch((err) => console.log(err));
   }, []);
+  // When the user selects a project, form.project_id changes.
+  // This useEffect detects that change and fetches ONLY the parent tasks
+  // belonging to the selected project.
+  // If no project is selected, we clear the tasks and don't make a request.
+  // This prevents showing parent tasks from other projects and avoids
+  // the validation error: "The parent task must belong to the same project."
+  useEffect(() => {
+    if (!form.project_id) {
+      setTasks([]);
+      return;
+    }
+
+    axios
+      .get(
+        `http://127.0.0.1:8000/api/engineer/TaskController/parent-tasks/${form.project_id}`,
+        authorization
+      )
+      .then((res) => {
+        setTasks(res.data || []);
+      })
+      .catch((err) => {
+        console.error("PARENT TASKS ERROR:", err);
+        setTasks([]);
+      });
+  }, [form.project_id]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -48,28 +79,44 @@ export default function TaskForm({ setShowTaskForm }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    try {
-      const payload = {
-        ...form,
-        project_id: form.project_id || null,
-        assigned_to: form.assigned_to || null,
-        parent_task_id: form.parent_task_id || null,
-        estimated_hours: form.estimated_hours || null,
-        begin_date: form.begin_date || null,
-        due_date: form.due_date || null
-      };
+    const payload = {
+      ...form,
+      project_id: form.project_id || null,
+      assigned_to: form.assigned_to || null,
+      parent_task_id: form.parent_task_id || null,
+      estimated_hours: form.estimated_hours || null,
+      begin_date: form.begin_date || null,
+      due_date: form.due_date || null,
+    };
 
-      await axios.post(
+    console.log("PAYLOAD SENT:", payload);
+
+    try {
+      const response = await axios.post(
         "http://127.0.0.1:8000/api/engineer/TaskController/CreateTask",
-        payload
+        payload,
+        authorization
       );
 
+      console.log("CREATE TASK RESPONSE:", response.data);
+
       setShowTaskForm(false);
-    } catch (err) {
-      console.log("ERROR:", err.response?.data || err.message);
+
+    } catch (error) {
+      alert("422 ERROR");
+
+      console.log(error);
+
+      if (error.response) {
+        alert(
+          "STATUS: " +
+          error.response.status +
+          "\n\n" +
+          JSON.stringify(error.response.data, null, 2)
+        );
+      }
     }
   };
-
   const inputClass =
     "w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100";
 
@@ -167,8 +214,16 @@ export default function TaskForm({ setShowTaskForm }) {
                   value={form.parent_task_id}
                   onChange={handleChange}
                   className={`${selectClass} pl-9`}
+                  disabled={!form.project_id}
                 >
-                  <option value="">No phase</option>
+                  <option value="">
+                    {!form.project_id
+                      ? "Select project first"
+                      : tasks.length === 0
+                        ? "No phases available"
+                        : "Select phase"}
+                  </option>
+
                   {tasks.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.title}
@@ -307,4 +362,5 @@ export default function TaskForm({ setShowTaskForm }) {
         </form>
       </div>
     </div>
-  )}
+  )
+}

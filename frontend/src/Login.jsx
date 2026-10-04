@@ -41,7 +41,7 @@ export default function Login() {
                 JSON.stringify(user)
             );
 
-            if (user.role === "chef_chantier") {
+            if (user.role === "site_manager") {
                 window.location.href = "/";
                 return;
             }

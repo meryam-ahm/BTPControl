@@ -24,7 +24,7 @@ const Dashboard = ({ currentProject }) => {
   const [projectPhoto, setProjectPhoto] = useState(null);
 
   const projectId = currentProject?.project_id;
-  const project = currentProject?.project;
+  const project = currentProject;
   const progress = stats.globalProgress ?? 0;
 
   useEffect(() => {
@@ -37,21 +37,42 @@ const Dashboard = ({ currentProject }) => {
       return;
     }
 
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      console.error('No authentication token found.');
+      return;
+    }
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json'
+    };
+
     Promise.all([
       axios.get(
-        `http://127.0.0.1:8000/api/projects/${projectId}/statsSiteManager`
+        `http://127.0.0.1:8000/api/projects/${projectId}/statsSiteManager`,
+        { headers }
       ),
+
       axios.get(
-        `http://127.0.0.1:8000/api/projects/${projectId}/photo`
+        `http://127.0.0.1:8000/api/projects/${projectId}/photo`,
+        { headers }
       ),
+
       axios.get(
-        `http://127.0.0.1:8000/api/projects/${projectId}/timeline`
+        `http://127.0.0.1:8000/api/engineer/projects/${projectId}/timeline`,
+        { headers }
       ),
+
       axios.get(
-        `http://127.0.0.1:8000/api/projects/${projectId}/resources`
+        `http://127.0.0.1:8000/api/projects/${projectId}/resources`,
+        { headers }
       ),
+
       axios.get(
-        `http://127.0.0.1:8000/api/projects/${projectId}/workers`
+        `http://127.0.0.1:8000/api/projects/${projectId}/workers`,
+        { headers }
       )
     ])
       .then(
@@ -76,6 +97,11 @@ const Dashboard = ({ currentProject }) => {
       )
       .catch((error) => {
         console.error('Dashboard error:', error);
+
+        if (error.response) {
+          console.error('Status:', error.response.status);
+          console.error('Response:', error.response.data);
+        }
 
         setStats({});
         setProjectPhoto(null);
@@ -170,7 +196,7 @@ const Dashboard = ({ currentProject }) => {
                   </div>
 
                   <h1 className="text-2xl font-black text-gray-900">
-                    {project?.name || 'Active Project'}
+                    {project?.project_name || 'Active Project'}
                   </h1>
 
                   <p className="text-sm text-gray-500 mt-2">
@@ -209,9 +235,7 @@ const Dashboard = ({ currentProject }) => {
 
                 {projectPhoto?.url ? (
                   <img
-                    src={`http://127.0.0.1:8000/storage/${encodeURI(
-                      projectPhoto.url
-                    )}`}
+                    src={projectPhoto.url}
                     alt={project?.name || 'Project'}
                     className="absolute inset-0 w-full h-full object-cover"
                   />
@@ -244,10 +268,10 @@ const Dashboard = ({ currentProject }) => {
 
             <div className="grid grid-cols-4 gap-4">
 
-              {/* WORKERS */}
+              {/* ================= WORKERS ================= */}
 
               <Link
-                to={`/workers/${projectId}`}
+                to="/workers"
                 className="block"
               >
                 <div className="bg-white p-4 rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition">
@@ -277,10 +301,10 @@ const Dashboard = ({ currentProject }) => {
                 </div>
               </Link>
 
-              {/* TASKS */}
+              {/* ================= TASKS ================= */}
 
               <Link
-                to={`/tasks/${projectId}`}
+                to="/tasks"
                 className="block"
               >
                 <div className="bg-white p-4 rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-sm transition">
@@ -310,10 +334,10 @@ const Dashboard = ({ currentProject }) => {
                 </div>
               </Link>
 
-              {/* INCIDENTS */}
+              {/* ================= INCIDENTS ================= */}
 
               <Link
-                to={`/incidents/${projectId}`}
+                to="/incidents"
                 className="block"
               >
                 <div className="bg-white p-4 rounded-xl border border-gray-100 hover:border-red-200 hover:shadow-sm transition">
@@ -343,10 +367,10 @@ const Dashboard = ({ currentProject }) => {
                 </div>
               </Link>
 
-              {/* RESOURCES */}
+              {/* ================= RESOURCES ================= */}
 
               <Link
-                to={`/resources/${projectId}`}
+                to="/resources"
                 className="block"
               >
                 <div className="bg-white p-4 rounded-xl border border-gray-100 hover:border-purple-200 hover:shadow-sm transition">
@@ -386,7 +410,7 @@ const Dashboard = ({ currentProject }) => {
             {/* ================= WORKERS OVERVIEW ================= */}
 
             <Link
-              to={`/workers/${projectId}`}
+              to="/workers"
               className="block"
             >
               <div className="bg-white rounded-2xl border border-gray-100 p-5 h-full hover:border-blue-200 hover:shadow-sm transition">
@@ -586,7 +610,7 @@ const Dashboard = ({ currentProject }) => {
                 </div>
 
                 <Link
-                  to={`/resources/${projectId}`}
+                  to="/resources"
                   className="text-xs font-bold text-blue-600 hover:text-blue-700"
                 >
                   View all
@@ -609,7 +633,7 @@ const Dashboard = ({ currentProject }) => {
                         <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center border border-gray-100">
 
                           {resource.type === 'equipment' ||
-                          resource.type === 'tool' ? (
+                            resource.type === 'tool' ? (
                             <Wrench className="w-4 h-4 text-gray-500" />
                           ) : (
                             <Package className="w-4 h-4 text-gray-500" />
@@ -632,23 +656,22 @@ const Dashboard = ({ currentProject }) => {
                       </div>
 
                       <span
-                        className={`text-[10px] font-bold px-2 py-1 rounded-md ${
-                          resource.status === 'available'
-                            ? 'bg-green-50 text-green-700'
-                            : resource.status === 'in_use'
+                        className={`text-[10px] font-bold px-2 py-1 rounded-md ${resource.status === 'available'
+                          ? 'bg-green-50 text-green-700'
+                          : resource.status === 'in_use'
                             ? 'bg-blue-50 text-blue-700'
                             : resource.status === 'damaged'
-                            ? 'bg-red-50 text-red-700'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
+                              ? 'bg-red-50 text-red-700'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
                       >
                         {resource.status === 'out_of_stock'
                           ? 'Out of Stock'
                           : resource.status === 'in_use'
-                          ? 'In Use'
-                          : resource.status === 'damaged'
-                          ? 'Damaged'
-                          : 'Available'}
+                            ? 'In Use'
+                            : resource.status === 'damaged'
+                              ? 'Damaged'
+                              : 'Available'}
                       </span>
 
                     </div>
@@ -676,7 +699,7 @@ const Dashboard = ({ currentProject }) => {
 
           <section className="grid grid-cols-[1.35fr_1fr] gap-4">
 
-            {/* TODAY'S TASKS */}
+            {/* ================= TODAY'S TASKS ================= */}
 
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
 
@@ -756,7 +779,7 @@ const Dashboard = ({ currentProject }) => {
               )}
 
               <Link
-                to={`/tasks/${projectId}`}
+                to="/tasks"
                 className="block mt-3 pt-3 border-t border-gray-50 text-center text-[11px] font-bold text-blue-600 uppercase tracking-wide"
               >
                 View all tasks
@@ -764,7 +787,7 @@ const Dashboard = ({ currentProject }) => {
 
             </div>
 
-            {/* SITE ALERTS */}
+            {/* ================= SITE ALERTS ================= */}
 
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
 
@@ -830,7 +853,7 @@ const Dashboard = ({ currentProject }) => {
               )}
 
               <Link
-                to={`/incidents/${projectId}`}
+                to="/incidents"
                 className="block mt-3 pt-3 border-t border-gray-50 text-center text-[11px] font-bold text-blue-600 uppercase tracking-wide"
               >
                 View incidents

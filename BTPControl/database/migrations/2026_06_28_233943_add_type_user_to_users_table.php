@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             $table->enum('type_user', [
                 'admin',
-                'chef_chantier',
+                'site_manager',
                 'engineer',
                 'worker',
                 'supervisor'

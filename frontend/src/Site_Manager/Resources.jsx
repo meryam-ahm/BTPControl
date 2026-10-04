@@ -27,10 +27,17 @@ const Resources = ({ currentProject }) => {
     }
 
     setLoading(true);
+    const token = localStorage.getItem('token')
 
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/api/projects/${projectId}/resources`
+        `http://127.0.0.1:8000/api/projects/${projectId}/resources`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: `Application/json`
+          }
+        }
       );
 
       const data = Array.isArray(response.data)
@@ -198,7 +205,9 @@ const Resources = ({ currentProject }) => {
             </p>
 
             <h2 className="text-sm font-bold text-gray-900 mt-1">
-              {currentProject?.project?.name || 'Unnamed Project'}
+              {currentProject?.project_name ||
+
+                'Unnamed Project'}
             </h2>
           </div>
 

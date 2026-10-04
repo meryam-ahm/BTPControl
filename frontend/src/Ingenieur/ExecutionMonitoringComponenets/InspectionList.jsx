@@ -8,9 +8,14 @@ export default function InspectionList({ projectId }) {
 
   useEffect(() => {
     if (!projectId) return;
-
+  const authHeader = {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Accept: "application/json",
+      },
+    };
     axios
-      .get(`http://127.0.0.1:8000/api/projects/${projectId}/inspections`)
+      .get(`http://127.0.0.1:8000/api/engineer/projects/${projectId}/inspections`,authHeader)
       .then((res) => {
         console.log("PROJECT ID =", projectId);
         console.log("Inspection List =", res.data);

@@ -36,10 +36,25 @@ const Tasks = ({ currentProject }) => {
       return;
     }
 
-    axios
-      .get(
-        `http://127.0.0.1:8000/api/SiteManager/projects/${projectId}/tasks`
-      )
+  const token = localStorage.getItem('token');
+
+  if (!token) {
+    console.error('No authentication token found.');
+    setTasks([]);
+    return;
+  }
+
+  axios
+    .get(
+      `http://127.0.0.1:8000/api/SiteManager/projects/${projectId}/tasks`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json'
+        }
+      }
+    )
+
       .then((res) => {
         const tasksArray = Array.isArray(res.data)
           ? res.data

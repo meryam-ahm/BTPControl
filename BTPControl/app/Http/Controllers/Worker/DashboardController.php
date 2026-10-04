@@ -17,10 +17,7 @@ class DashboardController extends Controller
         $workerId = $request->user()->id;
 
         return response()->json([
-            'projects' => ProjectUser::where(
-                'user_id',
-                $workerId
-            )
+            'projects' => ProjectUser::where('user_id',$workerId)
                 ->where(
                     'role_on_proj',
                     'worker'

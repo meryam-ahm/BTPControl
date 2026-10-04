@@ -9,7 +9,6 @@ import {
   Wrench,
   AlertTriangle,
   Clock,
-  MapPin,
 } from "lucide-react";
 import axios from "axios";
 
@@ -129,48 +128,164 @@ export default function WorkerReportModal({
     try {
       setLoading(true);
 
+      /*
+      |--------------------------------------------------------------------------
+      | Get Sanctum token
+      |--------------------------------------------------------------------------
+      */
+
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        setError(
+          "Your session has expired. Please log in again."
+        );
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Report payload
+      |--------------------------------------------------------------------------
+      */
+
       const payload = {
         project_id: projectId,
         task_id: form.task_id || null,
+
         title: `${form.category} Report`,
+
         type:
           form.category === "Safety"
             ? "safety"
             : "quality",
+
         inspection_date: new Date()
           .toISOString()
           .split("T")[0],
+
         notes: form.description,
 
         checks: [
           {
             check_name: form.category,
+
             required_value:
               form.required_value || null,
+
             actual_value:
               form.actual_value || null,
+
             unit: form.unit || null,
+
             status:
               form.urgency === "high"
                 ? "fail"
                 : "pending",
+
             severity:
               form.urgency === "high"
                 ? "high"
                 : form.urgency === "medium"
                 ? "medium"
                 : "low",
+
             comment: form.description,
           },
         ],
       };
 
-      const response = await axios.post(
-        `http://127.0.0.1:8000/api/Worker/projects/${projectId}/report`,
-        payload
-      );
+      /*
+      |--------------------------------------------------------------------------
+      | If there is a photo, use FormData
+      |--------------------------------------------------------------------------
+      */
 
-      console.log("Worker report created:", response.data);
+      let response;
+
+      if (form.photo) {
+        const formData = new FormData();
+
+        formData.append(
+          "project_id",
+          projectId
+        );
+
+        if (form.task_id) {
+          formData.append(
+            "task_id",
+            form.task_id
+          );
+        }
+
+        formData.append(
+          "title",
+          `${form.category} Report`
+        );
+
+        formData.append(
+          "type",
+          form.category === "Safety"
+            ? "safety"
+            : "quality"
+        );
+
+        formData.append(
+          "inspection_date",
+          new Date()
+            .toISOString()
+            .split("T")[0]
+        );
+
+        formData.append(
+          "notes",
+          form.description
+        );
+
+        formData.append(
+          "checks",
+          JSON.stringify(payload.checks)
+        );
+
+        formData.append(
+          "photo",
+          form.photo
+        );
+
+        response = await axios.post(
+          `http://127.0.0.1:8000/api/Worker/projects/${projectId}/report`,
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+      } else {
+        /*
+        |--------------------------------------------------------------------------
+        | Normal JSON request
+        |--------------------------------------------------------------------------
+        */
+
+        response = await axios.post(
+          `http://127.0.0.1:8000/api/Worker/projects/${projectId}/report`,
+          payload,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+          }
+        );
+      }
+
+      console.log(
+        "Worker report created:",
+        response.data
+      );
 
       if (onCreated) {
         onCreated(response.data);
@@ -178,9 +293,21 @@ export default function WorkerReportModal({
 
       onClose();
     } catch (err) {
-      console.error("Report error:", err);
+      console.error(
+        "Report error:",
+        err.response?.status,
+        err.response?.data || err.message
+      );
 
-      if (err.response?.data?.errors) {
+      if (err.response?.status === 401) {
+        setError(
+          "Unauthorized. Please log in again."
+        );
+      } else if (err.response?.status === 403) {
+        setError(
+          "You are not allowed to create a report for this project."
+        );
+      } else if (err.response?.data?.errors) {
         const firstError = Object.values(
           err.response.data.errors
         )[0];
@@ -288,6 +415,7 @@ export default function WorkerReportModal({
 
               {categories.map((category) => {
                 const Icon = category.icon;
+
                 const selected =
                   form.category === category.value;
 
@@ -298,7 +426,8 @@ export default function WorkerReportModal({
                     onClick={() => {
                       setForm((prev) => ({
                         ...prev,
-                        category: category.value,
+                        category:
+                          category.value,
                       }));
                     }}
                     className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold transition ${
@@ -407,7 +536,9 @@ export default function WorkerReportModal({
                   <ChevronDown
                     size={13}
                     className={`text-gray-400 transition ${
-                      unitOpen ? "rotate-180" : ""
+                      unitOpen
+                        ? "rotate-180"
+                        : ""
                     }`}
                   />
                 </button>
@@ -474,14 +605,17 @@ export default function WorkerReportModal({
                         (task) =>
                           Number(task.id) ===
                           Number(form.task_id)
-                      )?.title || "Select task"
+                      )?.title ||
+                      "Select task"
                     : "No specific task"}
                 </span>
 
                 <ChevronDown
                   size={14}
                   className={`text-gray-400 shrink-0 transition ${
-                    taskOpen ? "rotate-180" : ""
+                    taskOpen
+                      ? "rotate-180"
+                      : ""
                   }`}
                 />
 

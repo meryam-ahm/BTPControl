@@ -7,7 +7,12 @@ export default function ScheduleInspectionModal({
   projectId,
 }) {
   const [managers, setManagers] = useState([]);
-
+    const authHeader = {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Accept: "application/json",
+      },
+    };
   const [form, setForm] = useState({
     title: "",
     type: "quality",
@@ -21,7 +26,7 @@ export default function ScheduleInspectionModal({
 
     axios
       .get(
-        `http://127.0.0.1:8000/api/projects/${projectId}/site-managers`
+        `http://127.0.0.1:8000/api/engineer/projects/${projectId}/site-managers`,authHeader
       )
       .then((res) => setManagers(res.data))
       .catch(console.log);
@@ -30,7 +35,7 @@ export default function ScheduleInspectionModal({
   const handleSubmit = async () => {
     try {
       await axios.post(
-        "http://127.0.0.1:8000/api/inspections",
+        `http://127.0.0.1:8000/api/engineer/projects/${projectId}/inspections`,
         {
           project_id: projectId,
           title: form.title,
@@ -38,7 +43,7 @@ export default function ScheduleInspectionModal({
           inspection_date: form.inspection_date,
           inspected_by: form.inspected_by,
           notes: form.notes,
-        }
+        },authHeader
       );
 
       alert("Inspection Created");

@@ -44,7 +44,7 @@ class AuthController extends Controller
                 'required',
                 Rule::in([
                     'engineer',
-                    'chef_chantier',
+                    'site_manager',
                     'worker',
                 ]),
             ],

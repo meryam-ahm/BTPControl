@@ -8,7 +8,7 @@ class UserFactory extends Factory
 {
 public function definition(): array
 {
-    $roles = ['admin', 'chef_chantier', 'engineer', 'worker', 'supervisor'];
+    $roles = ['admin', 'site_manager', 'engineer', 'worker', 'supervisor'];
 
     return [
         'name' => fake()->name(),

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+ import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Plus,
@@ -17,8 +17,32 @@ const Incidents = ({ currentProject }) => {
   const [loading, setLoading] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
 
+  // ============================================================
+  // AUTHENTICATION HEADERS
+  // ============================================================
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("token");
+
+    return {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+  };
+
+  // ============================================================
+  // FETCH INCIDENTS
+  // ============================================================
   const fetchIncidents = async () => {
     if (!projectId) {
+      setIncidents([]);
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      console.error("No authentication token found.");
       setIncidents([]);
       return;
     }
@@ -27,8 +51,13 @@ const Incidents = ({ currentProject }) => {
 
     try {
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/projects/${projectId}/incidents`
+        `http://127.0.0.1:8000/api/projects/${projectId}/incidents`,
+        {
+          headers: getAuthHeaders(),
+        }
       );
+
+      console.log("Incidents response:", res.data);
 
       const data = Array.isArray(res.data)
         ? res.data
@@ -37,16 +66,31 @@ const Incidents = ({ currentProject }) => {
       setIncidents(data);
     } catch (err) {
       console.error("Error fetching incidents:", err);
+      console.error("Status:", err.response?.status);
+      console.error("Response:", err.response?.data);
+
+      if (err.response?.status === 401) {
+        console.error(
+          "Authentication failed. Token may be missing, expired, or invalid."
+        );
+      }
+
       setIncidents([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // ============================================================
+  // LOAD INCIDENTS WHEN PROJECT CHANGES
+  // ============================================================
   useEffect(() => {
     fetchIncidents();
   }, [projectId]);
 
+  // ============================================================
+  // SEVERITY STYLE
+  // ============================================================
   const getSeverityStyle = (severity) => {
     switch (severity?.toLowerCase()) {
       case "high":
@@ -72,6 +116,9 @@ const Incidents = ({ currentProject }) => {
     }
   };
 
+  // ============================================================
+  // STATUS STYLE
+  // ============================================================
   const getStatusStyle = (status) => {
     switch (status?.toLowerCase()) {
       case "completed":
@@ -89,6 +136,9 @@ const Incidents = ({ currentProject }) => {
     }
   };
 
+  // ============================================================
+  // SEARCH / FILTER
+  // ============================================================
   const filteredIncidents = incidents.filter((incident) => {
     const value = search.toLowerCase();
 
@@ -100,11 +150,17 @@ const Incidents = ({ currentProject }) => {
     );
   });
 
+  // ============================================================
+  // INCIDENT CREATED
+  // ============================================================
   const handleCreated = (newIncident) => {
     setIncidents((prev) => [newIncident, ...prev]);
     setShowReportForm(false);
   };
 
+  // ============================================================
+  // NO PROJECT SELECTED
+  // ============================================================
   if (!currentProject) {
     return (
       <div className="max-w-[1180px] mx-auto min-h-[650px] flex items-center justify-center bg-[#F7F8FA]">
@@ -125,11 +181,16 @@ const Incidents = ({ currentProject }) => {
     );
   }
 
+  // ============================================================
+  // MAIN UI
+  // ============================================================
   return (
     <div className="max-w-[1180px] mx-auto min-h-[calc(100vh-120px)] bg-[#F7F8FA] font-sans">
+
       {/* ================= HEADER ================= */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-start gap-3">
+
           {/* BACK ARROW */}
           <button
             type="button"
@@ -160,6 +221,7 @@ const Incidents = ({ currentProject }) => {
         </div>
 
         <div className="flex items-center gap-2">
+
           {/* REFRESH */}
           <button
             type="button"
@@ -188,13 +250,14 @@ const Incidents = ({ currentProject }) => {
       {/* ================= PROJECT INFO ================= */}
       <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4 mb-5">
         <div className="flex items-center justify-between">
+
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
               Current Project
             </p>
 
             <h2 className="text-sm font-bold text-gray-900 mt-1">
-              {currentProject?.project?.name || "Unnamed Project"}
+              { currentProject?.project_name || "Unnamed Project"}
             </h2>
           </div>
 
@@ -207,12 +270,14 @@ const Incidents = ({ currentProject }) => {
               {incidents.length}
             </p>
           </div>
+
         </div>
       </div>
 
       {/* ================= SEARCH ================= */}
       <div className="bg-white border border-gray-100 rounded-2xl p-4 mb-5">
         <div className="relative max-w-md">
+
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
 
           <input
@@ -222,20 +287,25 @@ const Incidents = ({ currentProject }) => {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
           />
+
         </div>
       </div>
 
       {/* ================= INCIDENTS ================= */}
       {loading ? (
         <div className="bg-white border border-gray-100 rounded-2xl py-20 flex flex-col items-center justify-center">
+
           <RefreshCw className="w-7 h-7 text-blue-500 animate-spin mb-3" />
 
           <p className="text-sm text-gray-400">
             Loading incidents...
           </p>
+
         </div>
       ) : filteredIncidents.length > 0 ? (
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
           {filteredIncidents.map((incident) => {
             const style = getSeverityStyle(incident.severity);
 
@@ -244,7 +314,9 @@ const Incidents = ({ currentProject }) => {
                 key={incident.id}
                 className="bg-white p-5 border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition"
               >
+
                 <div className="flex items-start gap-4">
+
                   {/* ICON */}
                   <div
                     className={`w-12 h-12 ${style.bg} ${style.icon} rounded-xl flex items-center justify-center shrink-0`}
@@ -254,7 +326,9 @@ const Incidents = ({ currentProject }) => {
 
                   {/* CONTENT */}
                   <div className="flex-1 min-w-0">
+
                     <div className="flex items-start justify-between gap-3">
+
                       <h3 className="font-bold text-gray-900 text-sm leading-tight">
                         {incident.title || "Untitled Incident"}
                       </h3>
@@ -266,9 +340,11 @@ const Incidents = ({ currentProject }) => {
                       >
                         {incident.status || "Open"}
                       </span>
+
                     </div>
 
                     <div className="mt-3 space-y-1.5">
+
                       <p
                         className={`${style.text} font-black text-xs uppercase`}
                       >
@@ -298,6 +374,7 @@ const Incidents = ({ currentProject }) => {
                           </span>
                         </p>
                       )}
+
                     </div>
 
                     {incident.notes && (
@@ -305,14 +382,19 @@ const Incidents = ({ currentProject }) => {
                         {incident.notes}
                       </p>
                     )}
+
                   </div>
                 </div>
               </div>
             );
           })}
+
         </div>
+
       ) : (
+
         <div className="bg-white border border-gray-100 rounded-2xl py-20 text-center">
+
           <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
             <AlertTriangle className="w-8 h-8 text-gray-300" />
           </div>
@@ -332,6 +414,7 @@ const Incidents = ({ currentProject }) => {
           >
             + Report your first incident
           </button>
+
         </div>
       )}
 
@@ -343,8 +426,13 @@ const Incidents = ({ currentProject }) => {
           onCreated={handleCreated}
         />
       )}
+
     </div>
   );
 };
 
 export default Incidents;
+
+ 
+
+ 

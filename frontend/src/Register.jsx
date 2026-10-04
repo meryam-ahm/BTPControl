@@ -43,7 +43,7 @@ export default function Register() {
 
             setSuccess("Account created successfully.");
 
-            if (user.role === "chef_chantier") {
+            if (user.role === "site_manager") {
                 window.location.href = "/";
                 return;
             }
@@ -216,7 +216,7 @@ export default function Register() {
                                     Worker
                                 </option>
 
-                                <option value="chef_chantier">
+                                <option value="site_manager">
                                     Site Manager
                                 </option>
 

@@ -8,17 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('non_conformities', function (Blueprint $table) {
+        Schema::create('incidents', function (Blueprint $table) {
             $table->id();
 
             $table->foreignId('project_id')
                 ->constrained('projects')
                 ->cascadeOnDelete();
-
-            $table->foreignId('inspection_check_id')
-                ->nullable()
-                ->constrained('inspection_checks')
-                ->nullOnDelete();
 
             $table->foreignId('reported_by')
                 ->constrained('users')
@@ -33,6 +28,16 @@ return new class extends Migration
 
             $table->text('description')->nullable();
 
+            $table->enum('type', [
+                'safety',
+                'accident',
+                'near_miss',
+                'equipment',
+                'property_damage',
+                'environmental',
+                'other'
+            ])->default('safety');
+
             $table->enum('severity', [
                 'low',
                 'medium',
@@ -42,16 +47,18 @@ return new class extends Migration
 
             $table->enum('status', [
                 'open',
-                'in_progress',
+                'investigating',
                 'resolved',
                 'closed'
             ])->default('open');
 
-            $table->date('due_date')->nullable();
+            $table->dateTime('incident_date');
 
-            $table->date('resolved_date')->nullable();
+            $table->string('location')->nullable();
 
-            $table->text('corrective_action')->nullable();
+            $table->text('immediate_action')->nullable();
+
+            $table->text('root_cause')->nullable();
 
             $table->text('notes')->nullable();
 
@@ -61,6 +68,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('non_conformities');
+        Schema::dropIfExists('incidents');
     }
 };

@@ -34,10 +34,7 @@ class ResourceController extends Controller
     public function index($projectId): JsonResponse
     {
         return response()->json([
-            'resources' => Resource::where(
-                'project_id',
-                $projectId
-            )
+            'resources' => Resource::where('project_id',$projectId)
             ->orderBy('name')
             ->get([
                 'id',

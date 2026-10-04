@@ -26,12 +26,18 @@ const ReportIncident = ({ projectId, onClose, onCreated }) => {
       comment: "",
     },
   ]);
-
+const token = localStorage.getItem("token");
+const authHeaders = {
+  Authorization: `Bearer ${token}`,
+  Accept: "application/json",
+  "Content-Type": "application/json",
+};
+    
   useEffect(() => {
     if (!projectId) return;
 
     axios
-      .get(`http://127.0.0.1:8000/api/SiteManager/projects/${projectId}/tasks`)
+      .get(`http://127.0.0.1:8000/api/SiteManager/projects/${projectId}/tasks`,{headers:authHeaders})
       .then((res) => {
         setTasks(res.data.tasks || res.data || []);
       })
@@ -125,9 +131,9 @@ const ReportIncident = ({ projectId, onClose, onCreated }) => {
     try {
       setLoading(true);
 
-      const res = await axios.post(
+  const res = await axios.post(
         `http://127.0.0.1:8000/api/projects/${projectId}/incidents`,
-        payload
+        payload,{headers:authHeaders}
       );
 
       console.log("Incident created:", res.data);

@@ -25,9 +25,8 @@ const units = [
   { value: 'day', label: 'Day', group: 'Equipment & Time' }
 ];
 
-const RequestResource = ({ onClose, onSuccess }) => {
-  const { currentProject } = useParams();
-
+const RequestResource = ({ onClose, onSuccess,projectId }) => {
+ 
   const [formData, setFormData] = useState({
     name: '',
     type: 'material',
@@ -78,9 +77,15 @@ const RequestResource = ({ onClose, onSuccess }) => {
 
     try {
       setLoading(true);
+    const token = localStorage.getItem("token");
 
+const authHeaders = {
+  Authorization: `Bearer ${token}`,
+  Accept: "application/json",
+  "Content-Type": "application/json",
+};
       await axios.post(
-        `http://127.0.0.1:8000/api/projects/${currentProject}/createResource`,
+        `http://127.0.0.1:8000/api/projects/${projectId}/createResource`,
         {
           name: formData.name,
           type: formData.type,
@@ -88,7 +93,7 @@ const RequestResource = ({ onClose, onSuccess }) => {
           unit: formData.unit,
           status: formData.status,
           supplier: formData.supplier || null
-        }
+        },{headers:authHeaders}
       );
 
       if (onSuccess) onSuccess();

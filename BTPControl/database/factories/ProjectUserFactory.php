@@ -14,7 +14,7 @@ class ProjectUserFactory extends Factory
             'project_id' => Project::inRandomOrder()->value('id'),
             'user_id' => User::inRandomOrder()->value('id'),
             'role_on_proj' => fake()->randomElement([
-                'chef_chantier',
+                'site_manager',
                 'engineer',
                 'worker',
                 'supervisor'

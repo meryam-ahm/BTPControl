@@ -63,15 +63,30 @@ export default function Cards() {
   };
 
   useEffect(() => {
-    axios
-      .get("http://127.0.0.1:8000/api/engineer/dashboard/stats")
-      .then((res) => {
-        setCards(res.data);
-      })
-      .catch((err) => {
-        console.error(err);
-      });
-  }, []);
+  const token = localStorage.getItem("token");
+
+  const authHeaders = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/json",
+  };
+
+  axios
+    .get(
+      "http://127.0.0.1:8000/api/engineer/dashboard/stats",
+      {
+        headers: authHeaders,
+      }
+    )
+    .then((res) => {
+      setCards(res.data);
+    })
+    .catch((err) => {
+      console.error(
+        err.response?.status,
+        err.response?.data || err
+      );
+    });
+}, []);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">

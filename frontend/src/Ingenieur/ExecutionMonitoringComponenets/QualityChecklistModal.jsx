@@ -18,42 +18,52 @@ export default function QualityChecklistModal({
     severity: "low",
     comment: "",
   });
-
+ const authHeader = {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Accept: "application/json",
+      },
+    };
   useEffect(() => {
     if (!open || !projectId) return;
-
+    
     axios
-      .get(`http://127.0.0.1:8000/api/projects/${projectId}/inspections`)
+      .get(`http://127.0.0.1:8000/api/engineer/projects/${projectId}/inspections`,authHeader)
       .then((res) => setInspections(res.data))
       .catch(console.log);
   }, [open, projectId]);
 
-  const handleSubmit = async () => {
-    try {
-      await axios.post(
-        "http://127.0.0.1:8000/api/inspection-checks",
-        form
-      );
+const handleSubmit = async () => {
+  try {
+    console.log("FORM BEING SENT:", form);
 
-      alert("Checklist Added");
+    await axios.post(
+      "http://127.0.0.1:8000/api/engineer/inspections-checks",
+      form,
+      authHeader
+    );
 
-      setForm({
-        inspection_id: "",
-        check_name: "",
-        required_value: "",
-        actual_value: "",
-        unit: "",
-        status: "pending",
-        severity: "low",
-        comment: "",
-      });
+    alert("Checklist Added");
 
-      onClose();
-    } catch (err) {
-      console.log(err);
-    }
-  };
+    setForm({
+      inspection_id: "",
+      check_name: "",
+      required_value: "",
+      actual_value: "",
+      unit: "",
+      status: "pending",
+      severity: "low",
+      comment: "",
+    });
 
+    onClose();
+
+  } catch (err) {
+    console.log("STATUS:", err.response?.status);
+    console.log("DATA:", err.response?.data);
+    console.log("ERRORS:", err.response?.data?.errors);
+  }
+};
   if (!open) return null;
 
   return (

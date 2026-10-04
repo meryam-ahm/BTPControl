@@ -7,9 +7,14 @@ export default function NonConformities({ projectId }) {
 
   useEffect(() => {
     if (!projectId) return;
-
+  const authHeader = {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Accept: "application/json",
+      },
+    };
     axios
-      .get(`http://127.0.0.1:8000/api/projects/${projectId}/non-conformities`)
+      .get(`http://127.0.0.1:8000/api/engineer/projects/${projectId}/non-conformities`,authHeader)
       .then(res => setItems(res.data))
       .catch(err => console.log(err));
   }, [projectId]);

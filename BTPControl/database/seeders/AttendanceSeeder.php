@@ -18,7 +18,7 @@ public function run(): void
             'check_in' => now(),
             'check_out' => now()->addHours(8),
             'status' => ['present','late','absent'][rand(0,2)],
-            'role_snapshot' => ['worker','engineer','chef_chantier'][rand(0,2)]
+            'role_snapshot' => ['worker','engineer','site_manager'][rand(0,2)]
         ]);
     }
 }

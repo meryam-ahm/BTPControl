@@ -13,7 +13,9 @@ class Project extends Model
     protected $fillable = [
         'name','client_id','location','budget','status','created_by'
     ];
-
+ public function tasks(){
+       return $this->hasMany(Task::class,'id');
+}
     public function users()
     {
         return $this->belongsToMany(User::class, 'project_users')

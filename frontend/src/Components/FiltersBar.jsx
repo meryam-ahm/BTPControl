@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import {
   RotateCcw,
@@ -30,12 +30,74 @@ export default function FiltersBar({ onFilter }) {
   const [typeSearch, setTypeSearch] = useState("");
   const [chefSearch, setChefSearch] = useState("");
 
+  // Refs for custom dropdown containers
+  const typeDropdownRef = useRef(null);
+  const chefDropdownRef = useRef(null);
+
+  // Fetch filter options
   useEffect(() => {
+    const token = localStorage.getItem("token");
+
     axios
-      .get("http://127.0.0.1:8000/api/engineer/dashbored/filters-data")
-      .then((res) => setOptions(res.data))
-      .catch((err) => console.error(err));
+      .get(
+        "http://127.0.0.1:8000/api/engineer/dashbored/projects/filters-data",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      )
+      .then((res) => {
+        setOptions({
+          types: Array.isArray(res.data.types) ? res.data.types : [],
+          chefs: Array.isArray(res.data.chefs) ? res.data.chefs : [],
+          statuses: Array.isArray(res.data.statuses) ? res.data.statuses : [],
+        });
+      })
+      .catch((err) => {
+        console.error(
+          "FILTERS ERROR:",
+          err.response?.status,
+          err.response?.data || err
+        );
+        setOptions({
+          types: [],
+          chefs: [],
+          statuses: [],
+        });
+      });
   }, []);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!openDropdown) return;
+
+      if (
+        openDropdown === "type" &&
+        typeDropdownRef.current &&
+        !typeDropdownRef.current.contains(event.target)
+      ) {
+        setOpenDropdown(null);
+        setTypeSearch("");
+      }
+
+      if (
+        openDropdown === "chef" &&
+        chefDropdownRef.current &&
+        !chefDropdownRef.current.contains(event.target)
+      ) {
+        setOpenDropdown(null);
+        setChefSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [openDropdown]);
 
   const handleChange = (e) => {
     const updated = {
@@ -81,21 +143,21 @@ export default function FiltersBar({ onFilter }) {
 
   const activeFilters = Object.values(filters).filter(Boolean).length;
 
-  const filteredTypes = options.types.filter((type) =>
+  const filteredTypes = (options.types || []).filter((type) =>
     type.toLowerCase().includes(typeSearch.toLowerCase())
   );
 
-  const filteredChefs = options.chefs.filter((chef) =>
+  const filteredChefs = (options.chefs || []).filter((chef) =>
     chef.name.toLowerCase().includes(chefSearch.toLowerCase())
   );
 
-  const selectedChef = options.chefs.find(
+  const selectedChef = (options.chefs || []).find(
     (chef) => String(chef.id) === String(filters.chef_id)
   );
 
   const selectClass = (active) =>
-    `h-10 min-w-[170px] px-3 rounded-xl border text-sm font-medium
-    flex items-center justify-between gap-3 cursor-pointer transition-all
+    `h-10 min-w-[170px] px-3 rounded-xl border text-sm font-medium 
+    flex items-center justify-between gap-3 cursor-pointer transition-all 
     ${
       active
         ? "bg-blue-50 border-blue-400 text-blue-700 shadow-sm"
@@ -107,7 +169,6 @@ export default function FiltersBar({ onFilter }) {
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm">
-
       {/* HEADER */}
       <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -135,9 +196,8 @@ export default function FiltersBar({ onFilter }) {
       {/* FILTERS */}
       <div className="p-4">
         <div className="flex flex-wrap gap-3 items-end">
-
           {/* PROJECT TYPE */}
-          <div className="relative">
+          <div ref={typeDropdownRef} className="relative">
             <label className="block mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
               Project Type
             </label>
@@ -165,7 +225,6 @@ export default function FiltersBar({ onFilter }) {
 
             {openDropdown === "type" && (
               <div className="absolute z-50 top-[68px] left-0 w-[270px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
-
                 {/* SEARCH */}
                 <div className="p-2 border-b border-slate-100">
                   <div className="relative">
@@ -187,7 +246,6 @@ export default function FiltersBar({ onFilter }) {
 
                 {/* OPTIONS */}
                 <div className="max-h-64 overflow-y-auto p-1.5">
-
                   <button
                     type="button"
                     onClick={() => selectType("")}
@@ -198,7 +256,6 @@ export default function FiltersBar({ onFilter }) {
                     }`}
                   >
                     All Types
-
                     {!filters.type && <Check size={15} />}
                   </button>
 
@@ -214,7 +271,6 @@ export default function FiltersBar({ onFilter }) {
                       }`}
                     >
                       <span className="truncate">{type}</span>
-
                       {filters.type === type && <Check size={15} />}
                     </button>
                   ))}
@@ -230,7 +286,7 @@ export default function FiltersBar({ onFilter }) {
           </div>
 
           {/* SITE MANAGER */}
-          <div className="relative">
+          <div ref={chefDropdownRef} className="relative">
             <label className="block mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
               Site Manager
             </label>
@@ -258,7 +314,6 @@ export default function FiltersBar({ onFilter }) {
 
             {openDropdown === "chef" && (
               <div className="absolute z-50 top-[68px] left-0 w-[270px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
-
                 {/* SEARCH */}
                 <div className="p-2 border-b border-slate-100">
                   <div className="relative">
@@ -280,7 +335,6 @@ export default function FiltersBar({ onFilter }) {
 
                 {/* OPTIONS */}
                 <div className="max-h-64 overflow-y-auto p-1.5">
-
                   <button
                     type="button"
                     onClick={() => selectChef("")}
@@ -291,7 +345,6 @@ export default function FiltersBar({ onFilter }) {
                     }`}
                   >
                     All Site Managers
-
                     {!filters.chef_id && <Check size={15} />}
                   </button>
 
@@ -307,7 +360,6 @@ export default function FiltersBar({ onFilter }) {
                       }`}
                     >
                       <span className="truncate">{chef.name}</span>
-
                       {String(filters.chef_id) === String(chef.id) && (
                         <Check size={15} />
                       )}
@@ -380,7 +432,7 @@ export default function FiltersBar({ onFilter }) {
             >
               <option value="">All Status</option>
 
-              {options.statuses.map((status, index) => (
+              {(options.statuses || []).map((status, index) => (
                 <option key={index} value={status}>
                   {status}
                 </option>
@@ -393,22 +445,21 @@ export default function FiltersBar({ onFilter }) {
             type="button"
             onClick={resetFilters}
             className="
-              h-10 px-4 rounded-xl
-              border border-yellow-300
-              bg-yellow-50 text-yellow-700
-              hover:bg-yellow-400 hover:text-[#0f2747]
-              hover:border-yellow-400
-              flex items-center gap-2
-              text-sm font-semibold
-              transition-all duration-200
+              h-10 px-4 rounded-xl 
+              border border-yellow-300 
+              bg-yellow-50 text-yellow-700 
+              hover:bg-yellow-400 hover:text-[#0f2747] 
+              hover:border-yellow-400 
+              flex items-center gap-2 
+              text-sm font-semibold 
+              transition-all duration-200 
             "
           >
             <RotateCcw size={15} />
             Reset
           </button>
-
         </div>
       </div>
     </div>
   );
-} 
+}

@@ -13,7 +13,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('project_id')->constrained('projects')->ondelete("cascade");
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->enum('role_on_proj',[ "chef_chantier","engineer","worker","supervisor"]);
+            $table->enum('role_on_proj',[ "site_manager","engineer","worker","supervisor"]);
             $table->timestamps();
         });
     }

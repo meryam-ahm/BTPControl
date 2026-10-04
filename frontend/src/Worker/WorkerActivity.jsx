@@ -1,5 +1,5 @@
- import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 
 import {
   Menu,
@@ -10,9 +10,9 @@ import {
   Send,
   CheckCheck,
   AlertCircle,
-} from 'lucide-react';
+} from "lucide-react";
 
-const API_URL = 'http://127.0.0.1:8000/api';
+const API_URL = "http://127.0.0.1:8000/api";
 
 export default function WorkerActivity({
   projectId,
@@ -21,38 +21,49 @@ export default function WorkerActivity({
   onNavigate,
 }) {
   const [chatStream, setChatStream] = useState([]);
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
 
-  const [loadingMessages, setLoadingMessages] =
-    useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
 
-  const [sendingMessage, setSendingMessage] =
-    useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
 
-  const [checkingIn, setCheckingIn] =
-    useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const [checkingOut, setCheckingOut] =
-    useState(false);
-
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  const [workDuration, setWorkDuration] =
-    useState(null);
-
-  /*
-  |--------------------------------------------------------------------------
-  | PROJECT ID
-  |--------------------------------------------------------------------------
-  */
+  const [workDuration, setWorkDuration] = useState(null);
 
   const currentProjectId = projectId;
 
-  console.log(
-    'WorkerActivity project ID:',
-    currentProjectId
-  );
+  /*
+  |--------------------------------------------------------------------------
+  | AUTH
+  |--------------------------------------------------------------------------
+  */
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("token");
+
+    return {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    };
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | CURRENT USER
+  |--------------------------------------------------------------------------
+  */
+
+  const getCurrentUserId = () => {
+    const userId =
+      localStorage.getItem("user_id") ||
+      localStorage.getItem("userId");
+
+    return userId ? Number(userId) : null;
+  };
 
   /*
   |--------------------------------------------------------------------------
@@ -65,27 +76,53 @@ export default function WorkerActivity({
       return;
     }
 
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError(
+        "You are not authenticated. Please log in again."
+      );
+      return;
+    }
+
     const loadMessages = async () => {
       try {
         setLoadingMessages(true);
-        setError('');
+        setError("");
 
         const response = await axios.get(
-          `${API_URL}/projects/${currentProjectId}/worker-activity/chat`
+          `${API_URL}/projects/${currentProjectId}/chat`,
+          {
+            headers: getAuthHeaders(),
+          }
         );
 
-        setChatStream(
-          response.data.messages || []
-        );
+        console.log("CHAT RESPONSE:", response.data);
+
+        const messages = Array.isArray(
+          response.data?.messages
+        )
+          ? response.data.messages
+          : [];
+
+        setChatStream(messages);
       } catch (err) {
         console.error(
-          'Error loading messages:',
-          err
+          "Error loading messages:",
+          err.response?.status,
+          err.response?.data || err.message
         );
 
-        setError(
-          'Unable to load messages.'
-        );
+        if (err.response?.status === 401) {
+          setError(
+            "Your session has expired. Please log in again."
+          );
+        } else {
+          setError(
+            err.response?.data?.message ||
+              "Unable to load messages."
+          );
+        }
       } finally {
         setLoadingMessages(false);
       }
@@ -105,24 +142,28 @@ export default function WorkerActivity({
       return;
     }
 
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError(
+        "You are not authenticated. Please log in again."
+      );
+      return;
+    }
+
     const loadAttendance = async () => {
       try {
         const response = await axios.get(
-          `${API_URL}/projects/${currentProjectId}/worker-activity/attendance`
+          `${API_URL}/projects/${currentProjectId}/worker-activity/attendance`,
+          {
+            headers: getAuthHeaders(),
+          }
         );
 
         const currentAttendance =
-          response.data.attendance;
+          response.data?.attendance;
 
-        setAttendance(
-          currentAttendance || null
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | If already checked out, calculate duration
-        |--------------------------------------------------------------------------
-        */
+        setAttendance(currentAttendance || null);
 
         if (
           currentAttendance?.check_in &&
@@ -137,17 +178,21 @@ export default function WorkerActivity({
         }
       } catch (err) {
         console.error(
-          'Error loading attendance:',
-          err
+          "Error loading attendance:",
+          err.response?.status,
+          err.response?.data || err.message
         );
+
+        if (err.response?.status === 401) {
+          setError(
+            "Your session has expired. Please log in again."
+          );
+        }
       }
     };
 
     loadAttendance();
-  }, [
-    currentProjectId,
-    setAttendance,
-  ]);
+  }, [currentProjectId, setAttendance]);
 
   /*
   |--------------------------------------------------------------------------
@@ -155,24 +200,17 @@ export default function WorkerActivity({
   |--------------------------------------------------------------------------
   */
 
-  const calculateDuration = (
-    checkIn,
-    checkOut
-  ) => {
+  const calculateDuration = (checkIn, checkOut) => {
     if (!checkIn || !checkOut) {
       setWorkDuration(null);
       return;
     }
 
-    const start =
-      new Date(checkIn);
-
-    const end =
-      new Date(checkOut);
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
 
     const difference =
-      end.getTime() -
-      start.getTime();
+      end.getTime() - start.getTime();
 
     if (difference <= 0) {
       setWorkDuration(null);
@@ -187,10 +225,9 @@ export default function WorkerActivity({
       totalMinutes / 60
     );
 
-    const minutes =
-      totalMinutes % 60;
+    const minutes = totalMinutes % 60;
 
-    let duration = '';
+    let duration = "";
 
     if (hours > 0) {
       duration += `${hours}h `;
@@ -201,12 +238,10 @@ export default function WorkerActivity({
     }
 
     if (!duration) {
-      duration = 'Less than 1 min';
+      duration = "Less than 1 min";
     }
 
-    setWorkDuration(
-      duration.trim()
-    );
+    setWorkDuration(duration.trim());
   };
 
   /*
@@ -217,23 +252,19 @@ export default function WorkerActivity({
 
   const formatTime = (dateValue) => {
     if (!dateValue) {
-      return '--:--';
+      return "--:--";
     }
 
-    const date =
-      new Date(dateValue);
+    const date = new Date(dateValue);
 
     if (isNaN(date.getTime())) {
-      return '--:--';
+      return "--:--";
     }
 
-    return date.toLocaleTimeString(
-      [],
-      {
-        hour: '2-digit',
-        minute: '2-digit',
-      }
-    );
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   /*
@@ -243,50 +274,76 @@ export default function WorkerActivity({
   */
 
   const handleSendMessage = async () => {
-    const text =
-      inputValue.trim();
+    const text = inputValue.trim();
 
     if (!text || !currentProjectId) {
       return;
     }
 
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError(
+        "You are not authenticated. Please log in again."
+      );
+      return;
+    }
+
     try {
       setSendingMessage(true);
-      setError('');
-      setMessage('');
+      setError("");
+      setMessage("");
 
-      const response =
-        await axios.post(
-          `${API_URL}/projects/${currentProjectId}/worker-activity/chat`,
-          {
-            message: text,
-          }
-        );
+      const response = await axios.post(
+        `${API_URL}/projects/${currentProjectId}/chat`,
+        {
+          message: text,
+        },
+        {
+          headers: {
+            ...getAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log(
+        "SENT MESSAGE RESPONSE:",
+        response.data
+      );
 
       const newMessage =
-        response.data.message;
+        response.data?.chat_message;
 
-      setChatStream((previous) => [
-        ...previous,
-        newMessage,
-      ]);
+      if (newMessage) {
+        setChatStream((previous) => [
+          ...previous,
+          newMessage,
+        ]);
+      }
 
-      setInputValue('');
+      setInputValue("");
     } catch (err) {
       console.error(
-        'Error sending message:',
+        "Error sending message:",
         err
       );
 
       console.error(
-        'Server response:',
+        "Server response:",
         err.response?.data
       );
 
-      setError(
-        err.response?.data?.message ||
-        'Unable to send message.'
-      );
+      if (err.response?.status === 401) {
+        setError(
+          "Your session has expired. Please log in again."
+        );
+      } else {
+        setError(
+          err.response?.data?.message ||
+            "Unable to send message."
+        );
+      }
     } finally {
       setSendingMessage(false);
     }
@@ -299,9 +356,8 @@ export default function WorkerActivity({
   */
 
   const handleKeyDown = (event) => {
-    if (event.key === 'Enter') {
+    if (event.key === "Enter") {
       event.preventDefault();
-
       handleSendMessage();
     }
   };
@@ -314,49 +370,57 @@ export default function WorkerActivity({
 
   const handleCheckIn = async () => {
     if (!currentProjectId) {
+      setError("No project selected.");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
       setError(
-        'No project selected.'
+        "You are not authenticated. Please log in again."
       );
       return;
     }
 
     try {
       setCheckingIn(true);
-      setError('');
-      setMessage('');
+      setError("");
+      setMessage("");
 
-      const response =
-        await axios.post(
-          `${API_URL}/projects/${currentProjectId}/worker-activity/check-in`
-        );
-
-      const newAttendance =
-        response.data.attendance;
-
-      setAttendance(
-        newAttendance
+      const response = await axios.post(
+        `${API_URL}/projects/${currentProjectId}/worker-activity/check-in`,
+        {},
+        {
+          headers: getAuthHeaders(),
+        }
       );
 
+      const newAttendance =
+        response.data?.attendance;
+
+      setAttendance(newAttendance || null);
       setWorkDuration(null);
 
       setMessage(
-        'You are checked in successfully.'
+        "You are checked in successfully."
       );
     } catch (err) {
       console.error(
-        'Error checking in:',
+        "Error checking in:",
         err
       );
 
-      console.error(
-        'Server response:',
-        err.response?.data
-      );
-
-      setError(
-        err.response?.data?.message ||
-        'Unable to check in.'
-      );
+      if (err.response?.status === 401) {
+        setError(
+          "Your session has expired. Please log in again."
+        );
+      } else {
+        setError(
+          err.response?.data?.message ||
+            "Unable to check in."
+        );
+      }
     } finally {
       setCheckingIn(false);
     }
@@ -370,40 +434,47 @@ export default function WorkerActivity({
 
   const handleCheckOut = async () => {
     if (!currentProjectId) {
+      setError("No project selected.");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
       setError(
-        'No project selected.'
+        "You are not authenticated. Please log in again."
       );
       return;
     }
 
     try {
       setCheckingOut(true);
-      setError('');
-      setMessage('');
+      setError("");
+      setMessage("");
 
-      const response =
-        await axios.post(
-          `${API_URL}/projects/${currentProjectId}/worker-activity/check-out`
-        );
-
-      const updatedAttendance =
-        response.data.attendance;
-
-      setAttendance(
-        updatedAttendance
+      const response = await axios.post(
+        `${API_URL}/projects/${currentProjectId}/worker-activity/check-out`,
+        {},
+        {
+          headers: getAuthHeaders(),
+        }
       );
 
-      /*
-      |--------------------------------------------------------------------------
-      | Use backend duration when available
-      |--------------------------------------------------------------------------
-      */
+      const updatedAttendance =
+        response.data?.attendance;
 
-      if (response.data.work_duration) {
+      setAttendance(
+        updatedAttendance || null
+      );
+
+      if (response.data?.work_duration) {
         setWorkDuration(
           response.data.work_duration
         );
-      } else {
+      } else if (
+        updatedAttendance?.check_in &&
+        updatedAttendance?.check_out
+      ) {
         calculateDuration(
           updatedAttendance.check_in,
           updatedAttendance.check_out
@@ -411,23 +482,24 @@ export default function WorkerActivity({
       }
 
       setMessage(
-        'Work completed successfully.'
+        "Work completed successfully."
       );
     } catch (err) {
       console.error(
-        'Error checking out:',
+        "Error checking out:",
         err
       );
 
-      console.error(
-        'Server response:',
-        err.response?.data
-      );
-
-      setError(
-        err.response?.data?.message ||
-        'Unable to check out.'
-      );
+      if (err.response?.status === 401) {
+        setError(
+          "Your session has expired. Please log in again."
+        );
+      } else {
+        setError(
+          err.response?.data?.message ||
+            "Unable to check out."
+        );
+      }
     } finally {
       setCheckingOut(false);
     }
@@ -457,8 +529,8 @@ export default function WorkerActivity({
     <div className="p-5 space-y-5">
 
       {/* HEADER */}
-      <div className="flex items-center justify-between">
 
+      <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] text-gray-400 font-medium">
             Worker Activity
@@ -471,16 +543,16 @@ export default function WorkerActivity({
 
         <button
           onClick={() =>
-            onNavigate?.('home')
+            onNavigate?.("home")
           }
           className="w-9 h-9 rounded-xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-gray-500"
         >
           <Menu size={18} />
         </button>
-
       </div>
 
-      {/* STATUS MESSAGE */}
+      {/* SUCCESS MESSAGE */}
+
       {message && (
         <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl px-3 py-2.5 text-xs font-semibold">
           <CheckCircle2 size={15} />
@@ -488,7 +560,8 @@ export default function WorkerActivity({
         </div>
       )}
 
-      {/* ERROR MESSAGE */}
+      {/* ERROR */}
+
       {error && (
         <div className="flex items-start gap-2 bg-red-50 border border-red-100 text-red-600 rounded-xl px-3 py-2.5 text-xs font-semibold">
           <AlertCircle
@@ -501,6 +574,7 @@ export default function WorkerActivity({
       )}
 
       {/* CHAT */}
+
       <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
 
         <div className="flex items-center justify-between mb-4">
@@ -511,17 +585,18 @@ export default function WorkerActivity({
               className="text-blue-600"
             />
 
-            Supervisor Chat
+            Project Chat
           </h3>
 
           <span className="text-[9px] text-gray-400">
-            Project #{currentProjectId || '--'}
+            Project #{currentProjectId || "--"}
           </span>
 
         </div>
 
         {/* MESSAGES */}
-        <div className="space-y-3 max-h-[210px] overflow-y-auto pr-1">
+
+        <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
 
           {loadingMessages ? (
             <div className="text-center py-8 text-xs text-gray-400">
@@ -540,74 +615,86 @@ export default function WorkerActivity({
               </p>
 
               <p className="text-[10px] text-gray-300 mt-1">
-                Start a conversation with your supervisor.
+                Start a conversation with your team.
               </p>
 
             </div>
           ) : (
-            chatStream.map(
-              (chat, index) => {
+            chatStream.map((chat, index) => {
 
-                const isMine =
-                  chat.sender === 'You';
+              const currentUserId =
+                getCurrentUserId();
 
-                return (
+              const isMine =
+                currentUserId !== null &&
+                Number(chat.sender_id) ===
+                  currentUserId;
+
+              const senderName =
+                chat.sender?.name ||
+                chat.sender_name ||
+                "Team member";
+
+              return (
+                <div
+                  key={chat.id || index}
+                  className={`flex ${
+                    isMine
+                      ? "justify-end"
+                      : "justify-start"
+                  }`}
+                >
+
                   <div
-                    key={
-                      chat.id ||
-                      index
-                    }
-                    className={`flex ${
+                    className={`max-w-[80%] px-3 py-2.5 rounded-2xl ${
                       isMine
-                        ? 'justify-end'
-                        : 'justify-start'
+                        ? "bg-blue-600 text-white rounded-tr-none"
+                        : "bg-gray-100 text-gray-800 rounded-tl-none"
                     }`}
                   >
 
+                    {!isMine && (
+                      <p className="text-[9px] font-bold text-blue-600 mb-1">
+                        {senderName}
+                      </p>
+                    )}
+
+                    <p className="text-[11px] font-medium leading-relaxed">
+                      {chat.message}
+                    </p>
+
                     <div
-                      className={`max-w-[80%] px-3 py-2.5 rounded-2xl ${
+                      className={`flex items-center justify-end gap-1 mt-1 ${
                         isMine
-                          ? 'bg-blue-600 text-white rounded-tr-none'
-                          : 'bg-gray-100 text-gray-800 rounded-tl-none'
+                          ? "text-white/60"
+                          : "text-gray-400"
                       }`}
                     >
 
-                      {!isMine && (
-                        <p className="text-[9px] font-bold text-blue-600 mb-1">
-                          {chat.sender}
-                        </p>
+                      <span className="text-[8px]">
+                        {formatTime(
+                          chat.created_at ||
+                            chat.updated_at
+                        )}
+                      </span>
+
+                      {isMine && (
+                        <CheckCheck size={10} />
                       )}
 
-                      <p className="text-[11px] font-medium leading-relaxed">
-                        {chat.message}
-                      </p>
-
-                      <div
-                        className={`flex items-center justify-end gap-1 mt-1 ${
-                          isMine
-                            ? 'text-white/60'
-                            : 'text-gray-400'
-                        }`}
-                      >
-                        <span className="text-[8px]">
-                          {chat.time}
-                        </span>
-
-                        {isMine && (
-                          <CheckCheck size={10} />
-                        )}
-                      </div>
-
                     </div>
+
                   </div>
-                );
-              }
-            )
+
+                </div>
+              );
+            })
           )}
 
         </div>
 
         {/* INPUT */}
+
         <div className="flex items-center gap-2 pt-3 mt-3 border-t border-gray-100">
 
           <input
@@ -619,7 +706,7 @@ export default function WorkerActivity({
               )
             }
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder="Message your team..."
             disabled={
               sendingMessage ||
               !currentProjectId
@@ -647,6 +734,7 @@ export default function WorkerActivity({
       </div>
 
       {/* ATTENDANCE */}
+
       <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
 
         <div className="flex items-center justify-between mb-4">
@@ -669,9 +757,9 @@ export default function WorkerActivity({
         </div>
 
         {/* TIMES */}
+
         <div className="grid grid-cols-2 gap-3 mb-4">
 
-          {/* CHECK IN */}
           <div className="bg-gray-50 rounded-2xl p-3">
 
             <div className="flex items-center gap-1.5 text-gray-400 mb-1">
@@ -689,12 +777,11 @@ export default function WorkerActivity({
                 ? formatTime(
                     attendance.check_in
                   )
-                : '--:--'}
+                : "--:--"}
             </p>
 
           </div>
 
-          {/* CHECK OUT */}
           <div className="bg-gray-50 rounded-2xl p-3">
 
             <div className="flex items-center gap-1.5 text-gray-400 mb-1">
@@ -712,7 +799,7 @@ export default function WorkerActivity({
                 ? formatTime(
                     attendance.check_out
                   )
-                : '--:--'}
+                : "--:--"}
             </p>
 
           </div>
@@ -720,6 +807,7 @@ export default function WorkerActivity({
         </div>
 
         {/* DURATION */}
+
         {workDuration && (
           <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 mb-4">
 
@@ -748,9 +836,9 @@ export default function WorkerActivity({
         )}
 
         {/* BUTTONS */}
+
         <div className="grid grid-cols-2 gap-3">
 
-          {/* CHECK IN */}
           <button
             onClick={handleCheckIn}
             disabled={
@@ -763,24 +851,23 @@ export default function WorkerActivity({
             className={`text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 ${
               isCheckedIn ||
               isCheckedOut
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-emerald-500 hover:bg-emerald-600 text-white"
             }`}
           >
 
             <CheckCircle2 size={14} />
 
             {checkingIn
-              ? 'Checking...'
+              ? "Checking..."
               : isCheckedIn
-              ? 'Checked In'
+              ? "Checked In"
               : isCheckedOut
-              ? 'Completed'
-              : 'Check In'}
+              ? "Completed"
+              : "Check In"}
 
           </button>
 
-          {/* CHECK OUT */}
           <button
             onClick={handleCheckOut}
             disabled={
@@ -791,22 +878,21 @@ export default function WorkerActivity({
             }
             className={`text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 ${
               isCheckedIn
-                ? 'bg-red-500 hover:bg-red-600 text-white'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                ? "bg-red-500 hover:bg-red-600 text-white"
+                : "bg-gray-100 text-gray-400 cursor-not-allowed"
             }`}
           >
 
             <LogOut size={14} />
 
             {checkingOut
-              ? 'Checking...'
-              : 'Check Out'}
+              ? "Checking..."
+              : "Check Out"}
 
           </button>
 
         </div>
 
-        {/* ATTENDANCE INFO */}
         {!attendance && (
           <p className="text-center text-[10px] text-gray-400 mt-3">
             You have not checked in today.
@@ -830,4 +916,3 @@ export default function WorkerActivity({
     </div>
   );
 }
- 

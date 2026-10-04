@@ -37,7 +37,7 @@ export default function Auth() {
 
     const redirectByRole = (user) => {
         switch (user.role) {
-            case "chef_chantier":
+            case "site_manager":
                 // Your current Chef de chantier dashboard
                 window.location.href = "/";
                 break;
@@ -405,7 +405,7 @@ export default function Auth() {
                                             Engineer
                                         </option>
 
-                                        <option value="chef_chantier">
+                                        <option value="site_manager">
                                             Site Manager
                                         </option>
 

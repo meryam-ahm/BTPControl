@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\InspectionCheck;
 use App\Models\NonConformity;
+use App\Models\ProjectUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -17,6 +18,24 @@ class NonConformityController extends Controller
                 ->get()
         );
     }
+    public function siteManagers($projectId): JsonResponse
+{
+    $managers = ProjectUser::where('project_id', $projectId)
+        ->where('role_on_proj', 'site_manager')
+        ->with('user:id,name')
+        ->get()
+        ->filter(fn ($projectUser) => $projectUser->user !== null)
+        ->unique('user_id')
+        ->map(function ($projectUser) {
+            return [
+                'id' => $projectUser->user->id,
+                'name' => $projectUser->user->name,
+            ];
+        })
+        ->values();
+
+    return response()->json($managers);
+}
 
     public function show($id): JsonResponse
     {

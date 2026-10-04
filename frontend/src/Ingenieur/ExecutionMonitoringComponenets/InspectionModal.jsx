@@ -11,12 +11,17 @@ export default function InspectionModal({
 
   const [openNC, setOpenNC] = useState(false);
   const [selectedCheck, setSelectedCheck] = useState(null);
-
+const authHeader = {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Accept: "application/json",
+      },
+    };
   useEffect(() => {
     if (!inspectionId) return;
 
     axios
-      .get(`http://127.0.0.1:8000/api/inspections/${inspectionId}`)
+      .get(`http://127.0.0.1:8000/api/engineer/inspections/${inspectionId}`,authHeader)
       .then((res) => setData(res.data))
       .catch(console.log);
   }, [inspectionId]);

@@ -237,7 +237,7 @@ src/
 │   ├── PlanningGantt.jsx
 │   └── EditProject.jsx
 │
-├── chef_chantier/
+├── site_manager/
 │   ├── Dashboard.jsx
 │   ├── Sidebar.jsx
 │   ├── Workers.jsx
@@ -337,7 +337,7 @@ if (user.role === "engineer") {
     // Engineer interface
 }
 
-if (user.role === "chef_chantier") {
+if (user.role === "site_manager") {
     // Site Manager interface
 }
 ```

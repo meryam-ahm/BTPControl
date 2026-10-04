@@ -1,15 +1,17 @@
- <?php
+<?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Engineer;
 
+use App\Http\Controllers\Controller;
 use App\Models\Project;
+use App\Models\Task;
 use App\Models\ProjectUser;
 use Illuminate\Http\JsonResponse;
-
+use Carbon\Carbon;
 class ProjectController extends Controller
 {
     /**
-     * Get all projects.
+     * Get all projects for the project selector.
      */
     public function getProjects(): JsonResponse
     {
@@ -26,111 +28,171 @@ class ProjectController extends Controller
     /**
      * Get workers assigned to a project.
      */
-    public function getProjectWorkers(Project $project): JsonResponse
-    {
-        $workers = ProjectUser::query()
-            ->where('project_id', $project->id)
-            ->where('role_on_proj', 'worker')
-            ->with([
-                'user:id,name,email,phone,role'
-            ])
-            ->get()
-            ->map(function ($projectUser) {
-                return [
-                    'id' => $projectUser->user->id,
-                    'name' => $projectUser->user->name,
-                    'email' => $projectUser->user->email,
-                    'phone' => $projectUser->user->phone,
-                    'role' => $projectUser->role_on_proj,
-                ];
-            });
+    public function getProjectWorkers($projectId)
+{
+    $project = Project::findOrFail($projectId);
 
-        return response()->json([
-            'project' => [
-                'id' => $project->id,
-                'name' => $project->name,
-            ],
-            'workers' => $workers,
-        ]);
-    }
+    $workers = ProjectUser::query()
+        ->where('project_id', $project->id)
+        ->where('role_on_proj', 'worker')
+        ->with('user:id,name,email,phone,role')
+        ->get()
+        ->filter(function ($projectUser) {
+            return $projectUser->user !== null;
+        })
+        ->map(function ($projectUser) {
+            return [
+                'id' => $projectUser->user->id,
+                'name' => $projectUser->user->name,
+                'email' => $projectUser->user->email,
+                'phone' => $projectUser->user->phone,
+                'role' => $projectUser->role_on_proj,
+            ];
+        })
+        ->values();
+
+    return response()->json([
+        'project' => [
+            'id' => $project->id,
+            'name' => $project->name,
+        ],
+        'workers' => $workers,
+    ]);
+}
 
     /**
-     * Get project task statistics.
+     * Get task statistics for a project.
      */
-    public function stats(Project $project): JsonResponse
-    {
-        $tasks = $project->tasks()
-            ->select([
-                'id',
-                'project_id',
-                'status',
-                'progress',
-                'due_date',
-            ])
-            ->get();
+public function stats($projectId)
+{
+    $project = Project::findOrFail($projectId);
 
-        $totalTasks = $tasks->count();
+    $tasks = Task::where('project_id', $projectId)->get();
 
-        $completedTasks = $tasks
-            ->where('status', 'completed')
-            ->count();
+    // =========================
+    // TASK COUNTS
+    // =========================
 
-        $inProgressTasks = $tasks
-            ->where('status', 'in_progress')
-            ->count();
+    $totalTasks = $tasks->count();
 
-        $pendingTasks = $tasks
-            ->where('status', 'pending')
-            ->count();
+    $completed = $tasks
+        ->where('status', 'completed')
+        ->count();
 
-        $cancelledTasks = $tasks
-            ->where('status', 'cancelled')
-            ->count();
+    $inProgress = $tasks
+        ->where('status', 'in_progress')
+        ->count();
 
-        $activeTasks = $tasks->whereNotIn('status', [
+    $pending = $tasks
+        ->where('status', 'pending')
+        ->count();
+
+    $cancelled = $tasks
+        ->where('status', 'cancelled')
+        ->count();
+
+    // =========================
+    // ACTIVE TASKS
+    // =========================
+
+    $activeTasks = $tasks
+        ->whereNotIn('status', [
             'completed',
             'cancelled',
-        ])->count();
+        ])
+        ->count();
 
-        /*
-         * Progress is calculated from the task progress values.
-         * This is more accurate than simply using completed/total.
-         */
-        $progress = $totalTasks > 0
-            ? round($tasks->avg('progress'))
-            : 0;
+    // =========================
+    // PROJECT PROGRESS
+    // =========================
 
-        /*
-         * A task is delayed only when:
-         * - it has a due date
-         * - the due date has passed
-         * - it is not completed
-         * - it is not cancelled
-         */
-        $delayedTasks = $tasks
-            ->filter(function ($task) {
-                return $task->due_date !== null
-                    && now()->gt($task->due_date)
-                    && !in_array($task->status, [
-                        'completed',
-                        'cancelled',
-                    ]);
-            })
-            ->count();
+    $progress = $totalTasks > 0
+        ? round(($completed / $totalTasks) * 100)
+        : 0;
 
-        return response()->json([
-            'project_id' => $project->id,
-            'stats' => [
-                'total_tasks' => $totalTasks,
-                'completed_tasks' => $completedTasks,
-                'in_progress_tasks' => $inProgressTasks,
-                'pending_tasks' => $pendingTasks,
-                'active_tasks' => $activeTasks,
-                'cancelled_tasks' => $cancelledTasks,
-                'delayed_tasks' => $delayedTasks,
-                'progress' => $progress,
-            ],
-        ]);
-    }
+    // =========================
+    // DELAYED TASKS
+    // =========================
+
+    $delayed = $tasks
+        ->filter(function ($task) {
+            return $task->due_date !== null
+                && Carbon::now()->gt(Carbon::parse($task->due_date))
+                && !in_array($task->status, [
+                    'completed',
+                    'cancelled',
+                ]);
+        })
+        ->count();
+
+    // =========================
+    // RETURN ARRAY
+    // IMPORTANT:
+    // DO NOT WRAP THIS IN "stats"
+    // =========================
+
+    return response()->json([
+        [
+            "title" => "Project Progress",
+            "value" => $progress,
+            "suffix" => "%",
+            "icon" => "TrendingUp",
+            "color" => "blue",
+        ],
+
+        [
+            "title" => "Total Tasks",
+            "value" => $totalTasks,
+            "icon" => "Grid3x3",
+            "color" => "indigo",
+        ],
+
+        [
+            "title" => "Completed Tasks",
+            "value" => $completed,
+            "icon" => "CheckCircle",
+            "color" => "emerald",
+        ],
+
+        [
+            "title" => "In Progress",
+            "value" => $inProgress,
+            "icon" => "Activity",
+            "color" => "blue",
+        ],
+
+        [
+            "title" => "Pending Tasks",
+            "value" => $pending,
+            "icon" => "Layers",
+            "color" => "indigo",
+        ],
+
+        [
+            "title" => "Active Tasks",
+            "value" => $activeTasks,
+            "icon" => "Activity",
+            "color" => "emerald",
+        ],
+
+        [
+            "title" => "Delayed Tasks",
+            "value" => $delayed,
+            "icon" => "AlertTriangle",
+            "color" => "blue",
+        ],
+
+        [
+            "title" => "Cancelled Tasks",
+            "value" => $cancelled,
+            "icon" => "AlertTriangle",
+            "color" => "indigo",
+        ],
+    ]);
 }
- 
+  
+
+
+    
+    
+}

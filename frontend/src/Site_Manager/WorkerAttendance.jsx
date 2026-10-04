@@ -16,10 +16,15 @@ const WorkerAttendance = ({ worker, onClose }) => {
 
   useEffect(() => {
     if (!worker?.id) return;
-
+    const token = localStorage.getItem("token");
+    const authHeaders = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
     setLoading(true);
     axios
-      .get(`http://127.0.0.1:8000/api/workers/${worker.id}/attendance`)
+      .get(`http://127.0.0.1:8000/api/workers/${worker.id}/attendance`,authHeaders)
       .then((res) => {
         const data = Array.isArray(res.data) ? res.data : res.data?.history || [];
         setAttendance(data);

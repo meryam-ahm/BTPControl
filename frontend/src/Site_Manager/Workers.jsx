@@ -1,3 +1,4 @@
+ 
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -8,7 +9,7 @@ import {
   UserCheck,
   Clock3,
   UserX,
-  UserRound
+  UserRound,
 } from "lucide-react";
 import axios from "axios";
 
@@ -17,6 +18,7 @@ import WorkerMenu from "./WorkerMenu";
 import WorkerProfileModal from "./WorkerProfileModal";
 import WorkerTasks from "./WorkerTasks";
 import WorkerAttendance from "./WorkerAttendance";
+import WorkerChatModal from "./WorkerChatModal";
 
 const FILTERS = ["All", "present", "late", "half_day", "absent"];
 
@@ -24,35 +26,35 @@ const STATUS_LABELS = {
   present: "Present",
   late: "Late",
   half_day: "Half Day",
-  absent: "Absent"
+  absent: "Absent",
 };
 
 const STATUS_STYLES = {
   present: {
     color: "text-green-700",
     bg: "bg-green-50",
-    dot: "bg-green-500"
+    dot: "bg-green-500",
   },
   late: {
     color: "text-yellow-700",
     bg: "bg-yellow-50",
-    dot: "bg-yellow-500"
+    dot: "bg-yellow-500",
   },
   half_day: {
     color: "text-orange-700",
     bg: "bg-orange-50",
-    dot: "bg-orange-500"
+    dot: "bg-orange-500",
   },
   absent: {
     color: "text-red-700",
     bg: "bg-red-50",
-    dot: "bg-red-500"
+    dot: "bg-red-500",
   },
   default: {
     color: "text-gray-600",
     bg: "bg-gray-50",
-    dot: "bg-gray-400"
-  }
+    dot: "bg-gray-400",
+  },
 };
 
 const getStatusLabel = (status) =>
@@ -64,9 +66,10 @@ const Workers = ({ currentProject }) => {
   const [activeFilter, setActiveFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [openMenuId, setOpenMenuId] = useState(null);
+
   const [activeModal, setActiveModal] = useState({
     type: null,
-    worker: null
+    worker: null,
   });
 
   const projectId = currentProject?.project_id;
@@ -95,17 +98,34 @@ const Workers = ({ currentProject }) => {
       return;
     }
 
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      console.error("No authentication token found");
+      setWorkers([]);
+      return;
+    }
+
     axios
       .get(
-        `http://127.0.0.1:8000/api/projects/${projectId}/workers`
+        `http://127.0.0.1:8000/api/projects/${projectId}/workers`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
       )
       .then((res) => {
+        console.log("Workers Response:", res.data);
+
         const workersArray = Array.isArray(res.data)
           ? res.data
           : res.data?.workers || [];
 
         const workersData = workersArray.map((worker) => {
           const status = worker.status?.toLowerCase();
+
           const style =
             STATUS_STYLES[status] || STATUS_STYLES.default;
 
@@ -122,9 +142,11 @@ const Workers = ({ currentProject }) => {
             project_name: worker.project_name,
             phone: worker.phone,
             email: worker.email,
+
             joined_at:
               worker.joined_at || worker.created_at,
-            status: status,
+
+            status,
             statusColor: style.color,
             statusBg: style.bg,
             statusDot: style.dot,
@@ -142,16 +164,21 @@ const Workers = ({ currentProject }) => {
                     task.status ||
                     task.status_task ||
                     "Pending",
-                  progress: task.progress ?? 0
+                  progress: task.progress ?? 0,
                 }))
-              : []
+              : [],
           };
         });
 
         setWorkers(workersData);
       })
       .catch((error) => {
-        console.error("Error fetching workers:", error);
+        console.error(
+          "Error fetching workers:",
+          error.response?.status,
+          error.response?.data || error
+        );
+
         setWorkers([]);
       });
   }, [projectId]);
@@ -166,13 +193,20 @@ const Workers = ({ currentProject }) => {
   /* ================= WORKER ACTION ================= */
 
   const handleWorkerAction = (action, workerId) => {
-    const worker = workers.find(
-      (item) => item.id === workerId
-    );
+    const worker = workers.find((item) => item.id === workerId);
 
     if (!worker) return;
 
     setOpenMenuId(null);
+
+    if (action === "chat") {
+      setActiveModal({
+        type: "chat",
+        worker,
+      });
+
+      return;
+    }
 
     if (action === "remove") {
       const confirmed = window.confirm(
@@ -181,22 +215,25 @@ const Workers = ({ currentProject }) => {
 
       if (!confirmed) return;
 
+      const token = localStorage.getItem("token");
+
       axios
         .delete(
-          `http://127.0.0.1:8000/api/projects/${projectId}/workers/${workerId}`
+          `http://127.0.0.1:8000/api/projects/${projectId}/workers/${workerId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
         )
         .then(() => {
           setWorkers((prevWorkers) =>
-            prevWorkers.filter(
-              (item) => item.id !== workerId
-            )
+            prevWorkers.filter((item) => item.id !== workerId)
           );
         })
         .catch((error) => {
-          console.error(
-            "Error removing worker:",
-            error
-          );
+          console.error("Error removing worker:", error);
         });
 
       return;
@@ -204,14 +241,16 @@ const Workers = ({ currentProject }) => {
 
     setActiveModal({
       type: action,
-      worker
+      worker,
     });
   };
+
+  /* ================= CLOSE MODAL ================= */
 
   const closeModal = () => {
     setActiveModal({
       type: null,
-      worker: null
+      worker: null,
     });
   };
 
@@ -253,7 +292,6 @@ const Workers = ({ currentProject }) => {
     return (
       <div className="min-h-[650px] flex items-center justify-center">
         <div className="text-center">
-
           <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
             <Users className="w-8 h-8 text-blue-500" />
           </div>
@@ -265,7 +303,6 @@ const Workers = ({ currentProject }) => {
           <p className="text-sm text-gray-400 mt-1">
             Select a project from the header to view its workers.
           </p>
-
         </div>
       </div>
     );
@@ -277,7 +314,6 @@ const Workers = ({ currentProject }) => {
       {/* ================= PAGE HEADER ================= */}
 
       <div className="flex items-center justify-between mb-6">
-
         <div className="flex items-center gap-4">
 
           <button
@@ -289,15 +325,12 @@ const Workers = ({ currentProject }) => {
           </button>
 
           <div>
-
             <div className="flex items-center gap-2">
-
               <Users className="w-4 h-4 text-blue-600" />
 
               <span className="text-[11px] font-black uppercase tracking-wider text-blue-600">
                 Project Team
               </span>
-
             </div>
 
             <h1 className="text-2xl font-black text-gray-900 mt-1">
@@ -307,9 +340,7 @@ const Workers = ({ currentProject }) => {
             <p className="text-sm text-gray-400 mt-1">
               Manage workers assigned to this construction project.
             </p>
-
           </div>
-
         </div>
 
         <button
@@ -319,7 +350,6 @@ const Workers = ({ currentProject }) => {
           <Plus className="w-4 h-4" />
           Add Worker
         </button>
-
       </div>
 
       {/* ================= PROJECT INFO ================= */}
@@ -327,7 +357,6 @@ const Workers = ({ currentProject }) => {
       <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4 mb-5 flex items-center justify-between">
 
         <div>
-
           <p className="text-[10px] uppercase tracking-wider font-black text-gray-400">
             Current Project
           </p>
@@ -335,21 +364,18 @@ const Workers = ({ currentProject }) => {
           <h2 className="text-sm font-black text-gray-900 mt-1">
             {currentProject?.project?.name ||
               currentProject?.project_name ||
+              currentProject?.name ||
               `Project #${projectId}`}
           </h2>
-
         </div>
 
         <div className="flex items-center gap-2">
-
           <span className="w-2 h-2 rounded-full bg-green-500" />
 
           <span className="text-xs font-bold text-gray-500">
             Project active
           </span>
-
         </div>
-
       </div>
 
       {/* ================= STATS ================= */}
@@ -357,7 +383,6 @@ const Workers = ({ currentProject }) => {
       <div className="grid grid-cols-4 gap-4 mb-5">
 
         <div className="bg-white border border-gray-100 rounded-2xl p-4">
-
           <div className="flex items-center justify-between">
 
             <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -367,7 +392,6 @@ const Workers = ({ currentProject }) => {
             <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
               Team
             </span>
-
           </div>
 
           <p className="text-2xl font-black text-gray-900 mt-4">
@@ -377,11 +401,9 @@ const Workers = ({ currentProject }) => {
           <p className="text-xs font-semibold text-gray-400 mt-1">
             Total workers
           </p>
-
         </div>
 
         <div className="bg-white border border-gray-100 rounded-2xl p-4">
-
           <div className="flex items-center justify-between">
 
             <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center">
@@ -391,7 +413,6 @@ const Workers = ({ currentProject }) => {
             <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
               Today
             </span>
-
           </div>
 
           <p className="text-2xl font-black text-gray-900 mt-4">
@@ -401,11 +422,9 @@ const Workers = ({ currentProject }) => {
           <p className="text-xs font-semibold text-gray-400 mt-1">
             Present
           </p>
-
         </div>
 
         <div className="bg-white border border-gray-100 rounded-2xl p-4">
-
           <div className="flex items-center justify-between">
 
             <div className="w-9 h-9 rounded-xl bg-yellow-50 flex items-center justify-center">
@@ -415,7 +434,6 @@ const Workers = ({ currentProject }) => {
             <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
               Attention
             </span>
-
           </div>
 
           <p className="text-2xl font-black text-gray-900 mt-4">
@@ -425,11 +443,9 @@ const Workers = ({ currentProject }) => {
           <p className="text-xs font-semibold text-gray-400 mt-1">
             Late today
           </p>
-
         </div>
 
         <div className="bg-white border border-gray-100 rounded-2xl p-4">
-
           <div className="flex items-center justify-between">
 
             <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center">
@@ -439,7 +455,6 @@ const Workers = ({ currentProject }) => {
             <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
               Today
             </span>
-
           </div>
 
           <p className="text-2xl font-black text-gray-900 mt-4">
@@ -449,7 +464,6 @@ const Workers = ({ currentProject }) => {
           <p className="text-xs font-semibold text-gray-400 mt-1">
             Absent
           </p>
-
         </div>
 
       </div>
@@ -461,26 +475,23 @@ const Workers = ({ currentProject }) => {
           currentProject={projectId}
           projectName={
             workers[0]?.project_name ||
-            currentProject?.project?.name
+            currentProject?.project?.name ||
+            currentProject?.project_name ||
+            currentProject?.name
           }
-          onClose={() =>
-            setShowCreateWorkerForm(false)
-          }
+          onClose={() => setShowCreateWorkerForm(false)}
           onWorkerCreated={handleWorkerCreated}
         />
       )}
 
       {/* ================= WORKERS PANEL ================= */}
 
-      <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-2xl overflow-visible">
 
         {/* TOOLBAR */}
 
         <div className="p-5 border-b border-gray-100">
-
           <div className="flex items-center justify-between gap-5">
-
-            {/* SEARCH */}
 
             <div className="relative w-full max-w-md">
 
@@ -490,20 +501,14 @@ const Workers = ({ currentProject }) => {
                 type="text"
                 placeholder="Search workers or roles..."
                 value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
+                onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
               />
-
             </div>
-
-            {/* RESULT COUNT */}
 
             <div className="hidden sm:block text-xs font-semibold text-gray-400 whitespace-nowrap">
               {filteredWorkers.length} of {workers.length} workers
             </div>
-
           </div>
 
           {/* FILTERS */}
@@ -511,24 +516,19 @@ const Workers = ({ currentProject }) => {
           <div className="flex gap-2 mt-4 overflow-x-auto pb-1">
 
             {FILTERS.map((filter) => {
-
-              const isActive =
-                activeFilter === filter;
+              const isActive = activeFilter === filter;
 
               const count =
                 filter === "All"
                   ? workers.length
                   : workers.filter(
-                      (worker) =>
-                        worker.status === filter
+                      (worker) => worker.status === filter
                     ).length;
 
               return (
                 <button
                   key={filter}
-                  onClick={() =>
-                    setActiveFilter(filter)
-                  }
+                  onClick={() => setActiveFilter(filter)}
                   className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition ${
                     isActive
                       ? "bg-gray-900 text-white"
@@ -548,22 +548,20 @@ const Workers = ({ currentProject }) => {
                   >
                     {count}
                   </span>
-
                 </button>
               );
             })}
 
           </div>
-
         </div>
 
         {/* ================= WORKERS LIST ================= */}
 
-        <div className="p-5">
+        <div className="p-5 overflow-visible">
 
           {filteredWorkers.length > 0 ? (
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 overflow-visible">
 
               {filteredWorkers.map((worker) => {
 
@@ -572,10 +570,9 @@ const Workers = ({ currentProject }) => {
                   STATUS_STYLES.default;
 
                 return (
-
                   <div
                     key={worker.id}
-                    className="group bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 hover:shadow-sm transition"
+                    className="group relative bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 hover:shadow-sm transition overflow-visible"
                   >
 
                     <div className="flex items-center justify-between">
@@ -624,7 +621,7 @@ const Workers = ({ currentProject }) => {
 
                       {/* MENU */}
 
-                      <div className="relative shrink-0">
+                      <div className="relative shrink-0 z-50">
 
                         <button
                           type="button"
@@ -651,7 +648,6 @@ const Workers = ({ currentProject }) => {
                         )}
 
                       </div>
-
                     </div>
 
                     {/* WORKER FOOTER */}
@@ -661,13 +657,11 @@ const Workers = ({ currentProject }) => {
                       <span
                         className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-black ${statusStyle.bg} ${statusStyle.color}`}
                       >
-
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}
                         />
 
                         {getStatusLabel(worker.status)}
-
                       </span>
 
                       <span className="text-[10px] font-semibold text-gray-400">
@@ -680,7 +674,6 @@ const Workers = ({ currentProject }) => {
                     </div>
 
                   </div>
-
                 );
               })}
 
@@ -691,9 +684,7 @@ const Workers = ({ currentProject }) => {
             <div className="py-20 text-center">
 
               <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
-
                 <Users className="w-7 h-7 text-gray-300" />
-
               </div>
 
               <p className="text-sm font-bold text-gray-600">
@@ -705,11 +696,9 @@ const Workers = ({ currentProject }) => {
               </p>
 
             </div>
-
           )}
 
         </div>
-
       </div>
 
       {/* ================= MODALS ================= */}
@@ -735,8 +724,17 @@ const Workers = ({ currentProject }) => {
         />
       )}
 
+      {activeModal.type === "chat" && (
+        <WorkerChatModal
+          worker={activeModal.worker}
+          projectId={projectId}
+          onClose={closeModal}
+        />
+      )}
+
     </div>
   );
 };
 
 export default Workers;
+

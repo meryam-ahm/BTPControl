@@ -19,11 +19,22 @@ class DashboardController extends Controller
         $managerId = $request->user()->id;
 
         $projects = ProjectUser::where('user_id', $managerId)
-            ->where('role_on_proj', 'chef_chantier')
+            ->where('role_on_proj', 'site_manager')
             ->with('project')
-            ->get();
+            ->get()
+            ->map(function ($projectUser) {
+                return [
+                    'project_id' => $projectUser->project?->id,
+                    'project_name' => $projectUser->project?->name,
+                    'role' => $projectUser->role_on_proj,
+                ];
+            })
+            ->filter(fn ($project) => $project['project_id'])
+            ->values();
 
-        return response()->json($projects);
+        return response()->json([
+            'projects' => $projects,
+        ]);
     }
 
     public function photo($projectId): JsonResponse
@@ -48,24 +59,17 @@ class DashboardController extends Controller
             'globalProgress' => $tasks->count()
                 ? round($tasks->avg('progress'))
                 : 0,
-
             'workers' => ProjectUser::where('project_id', $projectId)
                 ->where('role_on_proj', 'worker')
                 ->count(),
-
             'tasks' => $tasks->count(),
-
             'incidents' => InspectionCheck::where('status', 'fail')
                 ->whereHas(
                     'inspection',
                     fn ($q) => $q->where('project_id', $projectId)
                 )
                 ->count(),
-
-            'resources' => Resource::where(
-                'project_id',
-                $projectId
-            )->count(),
+            'resources' => Resource::where('project_id', $projectId)->count(),
         ]);
     }
 
@@ -79,28 +83,13 @@ class DashboardController extends Controller
             ])
             ->get()
             ->map(function ($worker) use ($projectId) {
-                $attendance = Attendance::where(
-                    'project_id',
-                    $projectId
-                )
-                    ->where(
-                        'user_id',
-                        $worker->user_id
-                    )
-                    ->whereDate(
-                        'check_in',
-                        today()
-                    )
+                $attendance = Attendance::where('project_id', $projectId)
+                    ->where('user_id', $worker->user_id)
+                    ->whereDate('check_in', today())
                     ->first();
 
-                $tasks = Task::where(
-                    'project_id',
-                    $projectId
-                )
-                    ->where(
-                        'assigned_to',
-                        $worker->user_id
-                    )
+                $tasks = Task::where('project_id', $projectId)
+                    ->where('assigned_to', $worker->user_id)
                     ->get();
 
                 return [
@@ -112,7 +101,6 @@ class DashboardController extends Controller
                     'email' => $worker->user?->email,
                     'joined_at' => $worker->created_at?->format('Y-m-d'),
                     'status' => $attendance?->status ?? 'absent',
-
                     'Workertasks' => $tasks->map(
                         fn ($task) => [
                             'id' => $task->id,
@@ -126,10 +114,7 @@ class DashboardController extends Controller
                 ];
             });
 
-        $tasks = Task::where(
-            'project_id',
-            $projectId
-        )
+        $tasks = Task::where('project_id', $projectId)
             ->with([
                 'parent:id,title',
                 'assignedUser:id,name',
@@ -159,39 +144,19 @@ class DashboardController extends Controller
         $managerId = $request->user()->id;
 
         return response()->json([
-            'projects' => ProjectUser::where(
-                'user_id',
-                $managerId
-            )
-                ->where(
-                    'role_on_proj',
-                    'chef_chantier'
-                )
+            'projects' => ProjectUser::where('user_id', $managerId)
+                ->where('role_on_proj', 'site_manager')
                 ->with('project:id,name')
                 ->get(),
 
-            'users' => ProjectUser::where(
-                'project_id',
-                $projectId
-            )
-                ->where(
-                    'role_on_proj',
-                    'worker'
-                )
+            'users' => ProjectUser::where('project_id', $projectId)
+                ->where('role_on_proj', 'worker')
                 ->with('user:id,name')
                 ->get(),
 
-            'tasks' => Task::select(
-                'id',
-                'title'
-            )
-                ->where(
-                    'project_id',
-                    $projectId
-                )
-                ->whereNull(
-                    'parent_task_id'
-                )
+            'tasks' => Task::select('id', 'title')
+                ->where('project_id', $projectId)
+                ->whereNull('parent_task_id')
                 ->get(),
         ]);
     }
@@ -199,12 +164,10 @@ class DashboardController extends Controller
     public function tasks($projectId): JsonResponse
     {
         return response()->json([
-            'tasks' => Task::where(
-                'project_id',
-                $projectId
-            )
+            'tasks' => Task::where('project_id', $projectId)
                 ->latest()
                 ->get(),
         ]);
     }
 }
+

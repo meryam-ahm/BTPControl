@@ -17,49 +17,132 @@ export default function ExecutionMonitoring() {
   const [projects, setProjects] = useState([]);
   const [currentProject, setCurrentProject] = useState(null);
 
-  // Load Projects
+  // =========================
+  // LOAD PROJECTS
+  // =========================
   useEffect(() => {
+    const authHeader = {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Accept: "application/json",
+      },
+    };
+
     axios
-      .get("http://127.0.0.1:8000/api/engineer/getProjects")
+      .get(
+        "http://127.0.0.1:8000/api/engineer/getProjects",
+        authHeader
+      )
       .then((res) => {
-        setProjects(res.data);
-        if (res.data.length > 0) {
-          setCurrentProject(res.data[0]);
+        const responseData = res.data;
+
+        // Normalize API response
+        const projectList = Array.isArray(responseData)
+          ? responseData
+          : responseData?.projects || [];
+
+        const normalizedProjects = projectList.map((project) => ({
+          ...project,
+
+          project_id: project.project_id ?? project.id,
+
+          project_name:
+            project.project_name ??
+            project.name ??
+            project.project?.project_name ??
+            project.project?.name,
+        }));
+
+        setProjects(normalizedProjects);
+
+        if (normalizedProjects.length > 0) {
+          setCurrentProject(normalizedProjects[0]);
         }
       })
-      .catch(console.log);
+      .catch((error) => {
+        console.error("PROJECTS ERROR:", error);
+        console.error("SERVER RESPONSE:", error.response?.data);
+        console.error("STATUS:", error.response?.status);
+      });
   }, []);
 
-  // Load Execution Data
+  // =========================
+  // LOAD EXECUTION DATA
+  // =========================
   useEffect(() => {
-    if (!currentProject?.id) return;
+    if (!currentProject) {
+      return;
+    }
+
+    const projectId =
+      currentProject.project_id ?? currentProject.id;
+
+    if (!projectId) {
+      console.error("No project ID found:", currentProject);
+      return;
+    }
+
+    const authHeader = {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Accept: "application/json",
+      },
+    };
 
     setLoading(true);
+    setData(null);
 
     axios
-      .get(`http://127.0.0.1:8000/api/projects/${currentProject.id}/execution`)
-      .then((res) => setData(res.data))
-      .catch(console.log)
-      .finally(() => setLoading(false));
-  }, [currentProject?.id]);
+      .get(
+        `http://127.0.0.1:8000/api/engineer/projects/${projectId}/execution`,
+        authHeader
+      )
+      .then((res) => {
+        console.log("EXECUTION DATA:", res.data);
+        setData(res.data);
+      })
+      .catch((error) => {
+        console.error("EXECUTION DATA ERROR:", error);
+        console.error("SERVER RESPONSE:", error.response?.data);
+        console.error("STATUS:", error.response?.status);
 
+        setData(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [currentProject]);
+
+  // =========================
+  // LOADING
+  // =========================
   if (loading || !data) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <p className="text-slate-600 text-lg">Loading...</p>
+        <p className="text-slate-600 text-lg">
+          Loading...
+        </p>
       </div>
     );
   }
 
+  const projectId =
+    currentProject?.project_id ?? currentProject?.id;
+
+  // =========================
+  // UI
+  // =========================
   return (
     <div className="min-h-screen bg-slate-100 p-6">
 
+      {/* Header / Project Selector */}
       <Header
         projects={projects}
         currentProject={currentProject}
         setCurrentProject={setCurrentProject}
       />
 
+      {/* Page Title */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-slate-800">
           Execution Monitoring
@@ -77,11 +160,11 @@ export default function ExecutionMonitoring() {
         />
 
         <SafetyPanel
-          projectId={currentProject?.id}
+          projectId={projectId}
         />
 
         <QuickActions
-          projectId={currentProject?.id}
+          projectId={projectId}
         />
 
       </div>
@@ -90,11 +173,11 @@ export default function ExecutionMonitoring() {
       <div className="grid grid-cols-2 gap-4">
 
         <InspectionList
-          projectId={currentProject?.id}
+          projectId={projectId}
         />
 
         <NonConformities
-          projectId={currentProject?.id}
+          projectId={projectId}
         />
 
       </div>

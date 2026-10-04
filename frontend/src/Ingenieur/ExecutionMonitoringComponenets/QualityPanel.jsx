@@ -20,22 +20,41 @@ export default function QualityPanel({ inspectionId }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!inspectionId) return;
+useEffect(() => {
+  if (!inspectionId) {
+    setLoading(false);
+    setRows([]);
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    axios
-      .get(
-        `http://localhost:8000/api/inspections/${inspectionId}/getquality`
-      )
-      .then((res) => {
-        setRows(res.data || []);
-      })
-      .catch((err) => console.log(err))
-      .finally(() => setLoading(false));
-  }, [inspectionId]);
+  const authHeader = {
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      Accept: "application/json",
+    },
+  };
 
+  axios
+    .get(
+      `http://127.0.0.1:8000/api/engineer/inspections/${inspectionId}/getquality`,
+      authHeader
+    )
+    .then((res) => {
+      console.log("QUALITY INSPECTION ID:", inspectionId);
+      console.log("QUALITY DATA:", res.data);
+
+      setRows(Array.isArray(res.data) ? res.data : []);
+    })
+    .catch((err) => {
+      console.error("QUALITY ERROR:", err);
+      setRows([]);
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+}, [inspectionId]);
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm p-5 h-[420px]">

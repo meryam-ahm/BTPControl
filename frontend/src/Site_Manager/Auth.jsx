@@ -42,7 +42,7 @@ export default function Auth() {
         setError("");
         setSuccess("");
 
-        try {
+        try { npm start npm start
             const response = await axios.post(
                 "http://127.0.0.1:8000/api/auth/login",
                 {
@@ -53,7 +53,7 @@ export default function Auth() {
 
             const user = response.data.user;
 
-            if (user.role !== "chef_chantier") {
+            if (user.role !== "site_manager") {
                 setError(
                     "This account is not a Chef de chantier account."
                 );
@@ -98,7 +98,7 @@ export default function Auth() {
                     password: registerData.password,
                     password_confirmation:
                         registerData.password_confirmation,
-                    role: "chef_chantier",
+                    role: "site_manager",
                 }
             );
 

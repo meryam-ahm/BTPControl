@@ -18,7 +18,12 @@ export default function CreateNonConformityModal({
     assigned_to: "",
     due_date: "",
   });
-
+  const authHeader = {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Accept: "application/json",
+      },
+    };
   // RESET FORM
   useEffect(() => {
     if (!inspectionCheck) return;
@@ -44,7 +49,7 @@ export default function CreateNonConformityModal({
         console.log("➡ Fetching managers...");
 
         const res = await axios.get(
-          `http://127.0.0.1:8000/api/projects/${projectId}/site-managers`
+          `http://127.0.0.1:8000/api/engineer/projects/${projectId}/site-managers`,authHeader
         );
 
         console.log("RAW API RESPONSE:", res.data);
@@ -76,7 +81,7 @@ export default function CreateNonConformityModal({
   // SUBMIT
   const handleSubmit = async () => {
     try {
-      await axios.post("http://127.0.0.1:8000/api/non-conformities", {
+      await axios.post("http://127.0.0.1:8000/api/engineer/non-conformities", {
         project_id: projectId,
         inspection_check_id: inspectionCheck.id,
         title: form.title,
@@ -84,7 +89,7 @@ export default function CreateNonConformityModal({
         severity: form.severity,
         assigned_to: form.assigned_to,
         due_date: form.due_date,
-      });
+      },authHeader);
 
       alert("Created successfully");
       onClose();

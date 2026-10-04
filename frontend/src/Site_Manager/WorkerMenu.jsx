@@ -1,14 +1,45 @@
 import React from "react";
-import { UserRound, ClipboardList, Clock3, UserMinus } from "lucide-react";
+import {
+  UserRound,
+  ClipboardList,
+  Clock3,
+  UserMinus,
+  MessageCircle,
+} from "lucide-react";
 
 const MENU_ITEMS = [
-  { action: "profile", icon: UserRound, text: "View Profile" },
-  { action: "tasks", icon: ClipboardList, text: "View Tasks" },
-  { action: "attendance", icon: Clock3, text: "Attendance History" },
-  { action: "remove", icon: UserMinus, text: "Remove from Project" },
+  {
+    action: "profile",
+    icon: UserRound,
+    text: "View Profile",
+  },
+  {
+    action: "tasks",
+    icon: ClipboardList,
+    text: "View Tasks",
+  },
+  {
+    action: "attendance",
+    icon: Clock3,
+    text: "Attendance History",
+  },
+  // {
+  //   action: "chat",
+  //   icon: MessageCircle,
+  //   text: "Message Worker",
+  // },
+  {
+    action: "remove",
+    icon: UserMinus,
+    text: "Remove from Project",
+  },
 ];
 
-const WorkerMenu = ({ worker, setOpenMenuId, onAction }) => {
+const WorkerMenu = ({
+  worker,
+  setOpenMenuId,
+  onAction,
+}) => {
   return (
     <div
       className="absolute right-0 top-7 z-50 w-52 rounded-xl border border-gray-200 bg-white py-1.5 shadow-xl"
@@ -20,11 +51,12 @@ const WorkerMenu = ({ worker, setOpenMenuId, onAction }) => {
 
         return (
           <React.Fragment key={item.action}>
-            {index === 3 && (
+            {index === 4 && (
               <div className="my-1.5 border-t border-gray-100" />
             )}
 
             <button
+              type="button"
               onClick={() => {
                 onAction(item.action, worker.id);
                 setOpenMenuId(null);

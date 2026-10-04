@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import {
   Menu,
@@ -27,17 +27,31 @@ export default function WorkerHome({
 
   const projectId = currentProject?.project_id;
 
+  /*
+  |--------------------------------------------------------------------------
+  | LOAD CURRENT PROJECT HOME
+  |--------------------------------------------------------------------------
+  */
+
   useEffect(() => {
     if (!projectId) {
       setData(null);
       return;
     }
 
+    const token = localStorage.getItem("token");
+
     setLoading(true);
 
     axios
       .get(
-        `http://127.0.0.1:8000/api/Worker/projects/${projectId}/home`
+        `http://127.0.0.1:8000/api/Worker/projects/${projectId}/home`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
       )
       .then((response) => {
         console.log("Worker Home:", response.data);
@@ -46,14 +60,21 @@ export default function WorkerHome({
       .catch((error) => {
         console.error(
           "Error loading worker home:",
-          error
+          error.response?.data || error
         );
+
         setData(null);
       })
       .finally(() => {
         setLoading(false);
       });
   }, [projectId]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | DATA
+  |--------------------------------------------------------------------------
+  */
 
   const workerName =
     data?.worker?.name || "Worker";
@@ -75,12 +96,23 @@ export default function WorkerHome({
     currentProject?.project?.name ||
     "Select a project";
 
+  /*
+  |--------------------------------------------------------------------------
+  | PROJECT SELECT
+  |--------------------------------------------------------------------------
+  */
+
   const handleProjectSelect = (project) => {
     setCurrentProject(project);
     setMenuOpen(false);
   };
 
-  // LOGOUT
+  /*
+  |--------------------------------------------------------------------------
+  | LOGOUT
+  |--------------------------------------------------------------------------
+  */
+
   const handleLogout = async () => {
     if (loggingOut) {
       return;
@@ -88,8 +120,7 @@ export default function WorkerHome({
 
     setLoggingOut(true);
 
-    const token =
-      localStorage.getItem("token");
+    const token = localStorage.getItem("token");
 
     try {
       if (token) {
@@ -107,7 +138,7 @@ export default function WorkerHome({
     } catch (error) {
       console.error(
         "Logout error:",
-        error
+        error.response?.data || error
       );
     } finally {
       localStorage.removeItem("token");
@@ -127,9 +158,11 @@ export default function WorkerHome({
       {!menuOpen && (
         <>
           {/* HEADER */}
+
           <div className="flex items-center justify-between">
 
             {/* BURGER */}
+
             <button
               onClick={() => setMenuOpen(true)}
               className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-emerald-50 active:scale-95 transition"
@@ -142,14 +175,17 @@ export default function WorkerHome({
             </button>
 
             {/* TITLE */}
+
             <h1 className="text-base font-bold text-gray-800">
               Worker Home
             </h1>
 
             {/* RIGHT SIDE */}
+
             <div className="flex items-center gap-2">
 
               {/* NOTIFICATIONS */}
+
               <button className="relative p-1">
                 <Bell
                   size={21}
@@ -162,7 +198,9 @@ export default function WorkerHome({
               </button>
 
               {/* PROFILE */}
+
               <div className="w-8 h-8 rounded-full bg-gray-200 border-2 border-emerald-500 flex items-center justify-center overflow-hidden">
+
                 {data?.worker?.profile_image ? (
                   <img
                     src={data.worker.profile_image}
@@ -176,12 +214,14 @@ export default function WorkerHome({
                     strokeWidth={2}
                   />
                 )}
+
               </div>
 
             </div>
           </div>
 
           {/* CURRENT PROJECT */}
+
           <button
             onClick={() => setMenuOpen(true)}
             className="w-full mt-3 flex items-center gap-2 px-1 text-left"
@@ -285,6 +325,7 @@ export default function WorkerHome({
                 </div>
 
                 {/* NEUTRAL HUMAN PLACEHOLDER */}
+
                 <div className="absolute bottom-4 right-5 w-20 h-20 rounded-full bg-white/20 flex items-center justify-center">
                   <User
                     size={42}
@@ -302,6 +343,7 @@ export default function WorkerHome({
               <div className="grid grid-cols-3 gap-2.5 mt-4">
 
                 {/* ACTIVE TASKS */}
+
                 <div className="bg-white p-3 rounded-2xl shadow-sm text-center border border-gray-100">
 
                   <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 mx-auto mb-1.5">
@@ -319,6 +361,7 @@ export default function WorkerHome({
                 </div>
 
                 {/* IN PROGRESS */}
+
                 <div className="bg-white p-3 rounded-2xl shadow-sm text-center border border-gray-100">
 
                   <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600 mx-auto mb-1.5">
@@ -336,6 +379,7 @@ export default function WorkerHome({
                 </div>
 
                 {/* COMPLETED */}
+
                 <div className="bg-white p-3 rounded-2xl shadow-sm text-center border border-gray-100">
 
                   <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-600 mx-auto mb-1.5">
@@ -363,6 +407,7 @@ export default function WorkerHome({
                 <div className="flex items-center justify-between mb-2">
 
                   <div className="flex items-center gap-2">
+
                     <TrendingUp
                       size={16}
                       className="text-emerald-600"
@@ -371,6 +416,7 @@ export default function WorkerHome({
                     <p className="text-xs font-bold text-gray-700">
                       Work Progress
                     </p>
+
                   </div>
 
                   <span className="text-xs font-extrabold text-emerald-600">
@@ -438,20 +484,24 @@ export default function WorkerHome({
       {menuOpen && (
         <>
           {/* DARK OVERLAY */}
+
           <div
             onClick={() => setMenuOpen(false)}
             className="absolute inset-0 bg-black/30 z-[90]"
           />
 
           {/* WHITE DRAWER */}
+
           <div className="absolute top-0 left-0 bottom-0 w-[300px] max-w-[82%] bg-white z-[100] shadow-2xl flex flex-col">
 
             {/* DRAWER HEADER */}
+
             <div className="px-5 py-5 border-b border-gray-100">
 
               <div className="flex items-center justify-between">
 
                 <div>
+
                   <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">
                     Worker Workspace
                   </p>
@@ -459,6 +509,7 @@ export default function WorkerHome({
                   <h2 className="text-lg font-bold text-gray-800 mt-1">
                     My Projects
                   </h2>
+
                 </div>
 
                 <button
@@ -477,6 +528,7 @@ export default function WorkerHome({
             </div>
 
             {/* PROJECTS */}
+
             <div className="flex-1 overflow-y-auto p-3">
 
               {projects?.length > 0 ? (
@@ -512,6 +564,7 @@ export default function WorkerHome({
                         >
 
                           {/* PROJECT ICON */}
+
                           <div
                             className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                               isSelected
@@ -530,6 +583,7 @@ export default function WorkerHome({
                           </div>
 
                           {/* PROJECT INFO */}
+
                           <div className="flex-1 min-w-0">
 
                             <p
@@ -555,13 +609,16 @@ export default function WorkerHome({
                           </div>
 
                           {/* SELECTED */}
+
                           {isSelected && (
                             <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+
                               <Check
                                 size={14}
                                 className="text-emerald-600"
                                 strokeWidth={3}
                               />
+
                             </div>
                           )}
 
@@ -592,14 +649,17 @@ export default function WorkerHome({
                   </p>
 
                 </div>
+
               )}
 
             </div>
 
             {/* FOOTER */}
+
             <div className="p-4 border-t border-gray-100">
 
               {/* LOGOUT BUTTON */}
+
               <button
                 onClick={handleLogout}
                 disabled={loggingOut}
@@ -615,11 +675,13 @@ export default function WorkerHome({
                   }
                 `}
               >
+
                 <LogOut size={15} />
 
                 {loggingOut
                   ? "Logging out..."
                   : "Logout"}
+
               </button>
 
               <p className="text-[10px] text-gray-400 text-center mt-3">
@@ -635,3 +697,6 @@ export default function WorkerHome({
     </div>
   );
 }
+ 
+
+ 

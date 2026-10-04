@@ -142,7 +142,7 @@ Valid roles:
 
 ```text
 engineer
-chef_chantier
+site_manager
 worker
 ```
 
